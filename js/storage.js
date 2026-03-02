@@ -11,6 +11,10 @@ const Storage = {
 
   set(name, value) {
     localStorage.setItem(this._key(name), JSON.stringify(value));
+    // Sync to Firebase if available
+    if (typeof FirebaseSync !== 'undefined') {
+      FirebaseSync.syncKey(name);
+    }
   },
 
   remove(name) {

@@ -26,6 +26,13 @@ const App = {
     // Handle hash routing
     window.addEventListener('hashchange', () => this.route());
 
+    // Initialize Firebase and cloud sync
+    if (typeof FirebaseApp !== 'undefined') {
+      FirebaseApp.init();
+      FirebaseSync.init();
+      FirebaseSync.onStatusChange(() => this.updateSyncStatus());
+    }
+
     // Market data connection status
     MarketData.onStatusChange(() => this.updateMarketStatus());
     MarketData.checkConnection();
@@ -82,6 +89,13 @@ const App = {
   updateMarketStatus() {
     const el = document.getElementById('market-status');
     if (el) el.innerHTML = MarketData.getStatusBadge();
+  },
+
+  updateSyncStatus() {
+    const el = document.getElementById('sync-status');
+    if (el && typeof FirebaseSync !== 'undefined') {
+      el.innerHTML = FirebaseSync.getStatusBadge();
+    }
   },
 
   renderPage(page, params = []) {

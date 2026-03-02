@@ -122,6 +122,35 @@ const Settings = {
         </div>
       </div>
 
+      <!-- Cloud Sync -->
+      <div class="card" style="margin-top:24px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Cloud Sync (Firebase)</div>
+            <div class="card-subtitle">Sync your portfolio data across all devices</div>
+          </div>
+          <div id="settings-sync-status">${typeof FirebaseSync !== 'undefined' ? FirebaseSync.getStatusBadge() : '<span style="color:#6b7280;font-size:0.75rem">Not configured</span>'}</div>
+        </div>
+
+        ${FirebaseApp.ready ? `
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+            <button class="btn btn-primary" onclick="Settings.forceSyncPush()">Push Local → Cloud</button>
+            <button class="btn" onclick="Settings.forceSyncPull()">Pull Cloud → Local</button>
+          </div>
+          <p style="font-size:0.78rem;color:var(--text-dim)">Push uploads your local data to the cloud. Pull downloads the latest cloud data to this device. You must be logged in for push to work.</p>
+        ` : `
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">Firebase is not configured yet. To enable cloud sync:</p>
+          <ol style="font-size:0.82rem;color:var(--text-muted);padding-left:20px;line-height:1.8">
+            <li>Go to <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent)">Firebase Console</a></li>
+            <li>Create a new project (or use an existing one)</li>
+            <li>Enable <strong>Realtime Database</strong> (Build → Realtime Database)</li>
+            <li>Enable <strong>Email/Password Authentication</strong> (Build → Authentication)</li>
+            <li>Register your email as a user in Firebase Auth</li>
+            <li>Copy your project config into <code>js/firebaseConfig.js</code></li>
+          </ol>
+        `}
+      </div>
+
       <!-- Market Data Diagnostics -->
       <div class="card" style="margin-top:24px">
         <div class="card-header">
@@ -209,6 +238,30 @@ const Settings = {
     a.download = `portfolio_backup_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  },
+
+  // --- Cloud Sync ---
+  async forceSyncPush() {
+    if (typeof FirebaseSync === 'undefined') return;
+    const ok = await FirebaseSync.forcePush();
+    if (ok) {
+      alert('All local data pushed to cloud successfully!');
+    } else {
+      alert('Push failed. Make sure you are logged in.');
+    }
+    const el = document.getElementById('settings-sync-status');
+    if (el) el.innerHTML = FirebaseSync.getStatusBadge();
+  },
+
+  async forceSyncPull() {
+    if (typeof FirebaseSync === 'undefined') return;
+    const ok = await FirebaseSync.forcePull();
+    if (ok) {
+      alert('Cloud data pulled to this device. Reloading...');
+      window.location.reload();
+    } else {
+      alert('Pull failed. Check your internet connection.');
+    }
   },
 
   // --- Diagnostics ---
