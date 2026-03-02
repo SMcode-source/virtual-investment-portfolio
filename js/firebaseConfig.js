@@ -3,13 +3,14 @@
 // Get these from: Firebase Console → Project Settings → General → Your apps → Web app
 
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAQrhbTdhbulyS9QMd7KMdo3kIDiIeumys",
+  authDomain: "virtual-portfolio-9334a.firebaseapp.com",
+  databaseURL: "https://virtual-portfolio-9334a-default-rtdb.firebaseio.com",
+  projectId: "virtual-portfolio-9334a",
+  storageBucket: "virtual-portfolio-9334a.firebasestorage.app",
+  messagingSenderId: "487818560659",
+  appId: "1:487818560659:web:e7dfbe5462b2e81ec13966",
+  measurementId: "G-Z4KPB2KH8M"
 };
 
 // Initialize Firebase (only if config is filled in)
