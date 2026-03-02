@@ -86,6 +86,14 @@ const Login = {
     const statusEl = document.getElementById('google-signin-status');
     const btn = document.getElementById('google-signin-btn');
     if (btn) btn.disabled = true;
+
+    // Check if running on file:// protocol
+    if (location.protocol === 'file:') {
+      if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444">Google sign-in requires a web server. Deploy to GitHub Pages or run a local server (e.g. <code>python -m http.server 8000</code>).</span>';
+      if (btn) btn.disabled = false;
+      return;
+    }
+
     if (statusEl) statusEl.innerHTML = '<span style="color:#f59e0b">Signing in with Google...</span>';
 
     const result = await Auth.signInWithGoogle();

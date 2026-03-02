@@ -36,6 +36,17 @@ const FirebaseSync = {
     this.setStatus('syncing');
 
     try {
+      // Check if returning from a redirect sign-in
+      try {
+        const redirectResult = await FirebaseApp.auth.getRedirectResult();
+        if (redirectResult?.user) {
+          console.log('[Sync] Redirect sign-in completed:', redirectResult.user.email);
+          await this._pushAll();
+        }
+      } catch (redirectErr) {
+        console.warn('[Sync] Redirect result check:', redirectErr.code, redirectErr.message);
+      }
+
       // Pull all cloud data into localStorage (cloud wins on first load)
       await this._pullAll();
 
@@ -181,15 +192,26 @@ const FirebaseSync = {
     if (!FirebaseApp.ready || !FirebaseApp.auth) return false;
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
-      const result = await FirebaseApp.auth.signInWithPopup(provider);
+      let result;
+      try {
+        result = await FirebaseApp.auth.signInWithPopup(provider);
+      } catch (popupErr) {
+        // If popup blocked or fails, fall back to redirect
+        if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+          console.warn('[Sync] Popup blocked — falling back to redirect sign-in');
+          await FirebaseApp.auth.signInWithRedirect(provider);
+          return true; // Will complete after redirect
+        }
+        throw popupErr;
+      }
       console.log('[Sync] Google sign-in successful:', result.user.email);
       // After signing in, push local data to cloud
       await this._pushAll();
       this.setStatus('synced');
       return true;
     } catch (e) {
-      console.error('[Sync] Google sign-in failed:', e.message);
-      return false;
+      console.error('[Sync] Google sign-in failed:', e.code, e.message);
+      throw new Error(`${e.code || 'unknown'}: ${e.message}`);
     }
   },
 
