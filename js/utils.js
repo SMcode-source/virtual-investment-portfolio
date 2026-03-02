@@ -54,7 +54,7 @@ const Utils = {
   getFlag(country) { return this.countryFlags[country] || '🌐'; },
 
   // --- Sharpe Ratio Calculation ---
-  calcSharpeRatio(returns, riskFreeRate = 0.05) {
+  calcSharpeRatio(returns, riskFreeRate = 0.04) {
     if (!returns || returns.length < 2) return { sharpe: 0, annReturn: 0, annVol: 0 };
     const n = returns.length;
     const dailyRf = riskFreeRate / 252;

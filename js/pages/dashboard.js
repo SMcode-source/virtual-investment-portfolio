@@ -414,7 +414,7 @@ const Dashboard = {
     const tbody = document.getElementById('sharpe-body');
     if (!tbody) return;
 
-    const riskFree = 0.05;
+    const riskFree = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
     const series = [
       { name: 'Portfolio', data: [] }, // placeholder
       ...Object.values(benchmarks).filter(b => b.data.length)

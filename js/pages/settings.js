@@ -36,6 +36,12 @@ const Settings = {
             </select>
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Risk-Free Rate (%)</label>
+            <input type="number" class="form-control" id="s-risk-free" value="${s.riskFreeRate ?? 4.0}" step="0.1" min="0" max="20">
+            <p style="font-size:0.72rem;color:var(--text-dim);margin-top:4px">Used for Sharpe ratio calculations across all pages. Default: 4%</p>
+          </div>
+
           <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="Settings.savePortfolio()">Save Portfolio Settings</button>
 
           <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
@@ -205,6 +211,7 @@ const Settings = {
     s.portfolioName = document.getElementById('s-name')?.value || 'My Portfolio';
     s.startingCash = parseFloat(document.getElementById('s-cash')?.value) || 100000;
     s.baseCurrency = document.getElementById('s-currency')?.value || 'USD';
+    s.riskFreeRate = parseFloat(document.getElementById('s-risk-free')?.value) ?? 4.0;
     Storage.saveSettings(s);
     alert('Portfolio settings saved!');
   },

@@ -557,7 +557,7 @@ const PublicView = {
   // Compute rolling Sharpe for a price series
   computeRollingSharpe(prices, windowDays) {
     if (!prices.length) return [];
-    const rfDaily = 0.05 / 252;
+    const rfDaily = ((Storage.getSettings().riskFreeRate ?? 4.0) / 100) / 252;
     const result = new Array(prices.length).fill(null);
 
     for (let i = windowDays; i < prices.length; i++) {
@@ -700,8 +700,9 @@ const PublicView = {
         const history = await MarketData.getBenchmarkHistory(bm, '1Y');
         const prices = history.map(d => d.close);
         const p6m = prices.slice(-126);
-        const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m));
-        const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(prices));
+        const rf = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
+        const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m), rf);
+        const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(prices), rf);
         rows.push({ name: bm, r6m, r1y });
       } catch {
         rows.push({ name: bm, r6m: { sharpe: 0, annReturn: 0, annVol: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0 } });

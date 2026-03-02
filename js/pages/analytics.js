@@ -2,12 +2,13 @@
 const Analytics = {
   calcStartDate: '',
   calcEndDate: '',
-  calcRiskFree: 5.0,
+  calcRiskFree: null, // initialized from settings on render
   calcResults: null,
 
   render(container) {
     const trades = Storage.getTrades();
     const settings = Storage.getSettings();
+    if (this.calcRiskFree === null) this.calcRiskFree = settings.riskFreeRate ?? 4.0;
 
     // Compute win/loss stats from closed trades
     const closedStats = this.computeClosedTradeStats(trades);
@@ -274,8 +275,9 @@ const Analytics = {
         const prices = history.map(d => d.close);
         const p6m = prices.slice(-126);
         const p1y = prices;
-        const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m));
-        const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(p1y));
+        const rf = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
+        const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m), rf);
+        const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(p1y), rf);
         rows.push({ name: bm, r6m, r1y });
       } catch {
         rows.push({ name: bm, r6m: { sharpe: 0, annReturn: 0, annVol: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0 } });

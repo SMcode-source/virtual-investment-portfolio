@@ -27,6 +27,7 @@ const Storage = {
       portfolioName: 'My Investment Portfolio',
       startingCash: 100000,
       baseCurrency: 'USD',
+      riskFreeRate: 4.0,
       public: {
         showHoldings: true,
         showTradeHistory: true,
