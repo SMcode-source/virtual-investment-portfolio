@@ -1,8 +1,7 @@
-// logTrade.js — Trade logging form with IBKR integration
+// logTrade.js — Trade logging form with Yahoo Finance integration
 const LogTrade = {
   tradeType: 'BUY',
   selectedTicker: null,
-  selectedConid: null,
   liveQuote: null,
   searchTimeout: null,
 
@@ -165,11 +164,11 @@ const LogTrade = {
     if (!results || val.length < 1) { if (results) results.style.display = 'none'; return; }
 
     try {
-      const matches = await IBKR.searchSymbol(val.toUpperCase());
+      const matches = await MarketData.searchSymbol(val.toUpperCase());
       if (matches.length) {
         results.style.display = 'block';
         results.innerHTML = matches.slice(0, 8).map(m =>
-          `<div class="result-item" onclick="LogTrade.selectTicker('${Utils.escHtml(m.ticker)}', '${Utils.escHtml(m.name)}', ${m.conid || 0})">
+          `<div class="result-item" onclick="LogTrade.selectTicker('${Utils.escHtml(m.ticker)}', '${Utils.escHtml(m.name)}')">
             <span class="ticker">${Utils.escHtml(m.ticker)}</span>
             <span class="name">${Utils.escHtml(m.name)}</span>
           </div>`
@@ -182,9 +181,8 @@ const LogTrade = {
     }
   }, 300),
 
-  async selectTicker(ticker, name, conid) {
+  async selectTicker(ticker, name) {
     this.selectedTicker = ticker;
-    this.selectedConid = conid;
     const input = document.getElementById('ticker-input');
     const company = document.getElementById('trade-company');
     const results = document.getElementById('ticker-results');
@@ -193,12 +191,12 @@ const LogTrade = {
     if (results) results.style.display = 'none';
 
     // Fetch live quote
-    if (conid || this.selectedTicker) {
+    if (this.selectedTicker) {
       const container = document.getElementById('live-price-container');
       if (container) container.innerHTML = '<div class="live-price-box"><div class="price">Loading...</div></div>';
 
       try {
-        const quote = await IBKR.getQuote(this.selectedTicker || conid);
+        const quote = await MarketData.getQuote(this.selectedTicker);
         if (quote && container) {
           this.liveQuote = quote;
           const changeClass = quote.change >= 0 ? 'positive' : 'negative';
@@ -291,7 +289,6 @@ const LogTrade = {
       commission,
       currency,
       date: new Date(date).toISOString(),
-      conid: this.selectedConid,
       // Reasoning
       thesis: document.getElementById('trade-thesis')?.value || '',
       sentiment: document.getElementById('trade-sentiment')?.value || '',
@@ -325,7 +322,6 @@ const LogTrade = {
 
     alert(`${this.tradeType} trade logged: ${shares} shares of ${ticker} @ ${Utils.formatCurrency(price)}`);
     this.selectedTicker = null;
-    this.selectedConid = null;
     this.liveQuote = null;
     this.render(document.getElementById('page-content'));
   }

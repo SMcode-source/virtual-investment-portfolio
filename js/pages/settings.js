@@ -39,20 +39,6 @@ const Settings = {
           <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="Settings.savePortfolio()">Save Portfolio Settings</button>
 
           <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
-            <div class="card-title" style="margin-bottom:12px">Change Password</div>
-            <div class="form-group">
-              <label class="form-label">Current Password</label>
-              <input type="password" class="form-control" id="s-pw-current" placeholder="Current password">
-            </div>
-            <div class="form-group">
-              <label class="form-label">New Password</label>
-              <input type="password" class="form-control" id="s-pw-new" placeholder="New password (6+ chars)">
-            </div>
-            <button class="btn" style="width:100%;justify-content:center" onclick="Settings.changePassword()">Update Password</button>
-            <div id="pw-change-msg" style="margin-top:8px;font-size:0.78rem"></div>
-          </div>
-
-          <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
             <div class="card-title" style="margin-bottom:12px;color:var(--red)">Danger Zone</div>
             <button class="btn" style="color:var(--red);border-color:var(--red);width:100%;justify-content:center;margin-bottom:8px" onclick="Settings.resetAll()">
               Reset All Data
@@ -141,9 +127,9 @@ const Settings = {
         <div class="card-header">
           <div>
             <div class="card-title">Market Data Diagnostics</div>
-            <div class="card-subtitle">Test Yahoo Finance data feed (no bridge server needed)</div>
+            <div class="card-subtitle">Test Yahoo Finance data feed</div>
           </div>
-          <div id="diag-status">${IBKR.getStatusBadge()}</div>
+          <div id="diag-status">${MarketData.getStatusBadge()}</div>
         </div>
 
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
@@ -167,30 +153,6 @@ const Settings = {
         </div>
       </div>
     `;
-  },
-
-  async changePassword() {
-    const current = document.getElementById('s-pw-current')?.value || '';
-    const newPw = document.getElementById('s-pw-new')?.value || '';
-    const msgEl = document.getElementById('pw-change-msg');
-
-    if (!current || !newPw) {
-      if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Both fields are required.'; }
-      return;
-    }
-    if (newPw.length < 6) {
-      if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'New password must be at least 6 characters.'; }
-      return;
-    }
-
-    const ok = await Auth.changePassword(current, newPw);
-    if (ok) {
-      if (msgEl) { msgEl.style.color = '#22c55e'; msgEl.textContent = 'Password updated successfully.'; }
-      document.getElementById('s-pw-current').value = '';
-      document.getElementById('s-pw-new').value = '';
-    } else {
-      if (msgEl) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Current password is incorrect.'; }
-    }
   },
 
   savePortfolio() {
@@ -268,17 +230,17 @@ const Settings = {
 
   _updateDiagStatus() {
     const el = document.getElementById('diag-status');
-    if (el) el.innerHTML = IBKR.getStatusBadge();
+    if (el) el.innerHTML = MarketData.getStatusBadge();
   },
 
   async testConnection() {
     this._clearLog();
     this._log('Testing Yahoo Finance connectivity...');
-    this._log(`CORS proxy: ${IBKR.corsProxy}`);
+    this._log(`CORS proxy: ${MarketData.corsProxy}`);
 
     try {
       const start = performance.now();
-      const result = await IBKR.checkConnection();
+      const result = await MarketData.checkConnection();
       const elapsed = (performance.now() - start).toFixed(0);
 
       if (result) {
@@ -300,7 +262,7 @@ const Settings = {
     try {
       Storage.remove('priceCache');
       const start = performance.now();
-      const quote = await IBKR.getQuote('SPY');
+      const quote = await MarketData.getQuote('SPY');
       const elapsed = (performance.now() - start).toFixed(0);
 
       if (quote && quote.last) {
@@ -329,7 +291,7 @@ const Settings = {
     try {
       Storage.remove('historyCache');
       const start = performance.now();
-      const history = await IBKR.getHistory('SPY', '1M', '1d');
+      const history = await MarketData.getHistory('SPY', '1M', '1d');
       const elapsed = (performance.now() - start).toFixed(0);
 
       if (history && history.length > 0) {
@@ -362,7 +324,7 @@ const Settings = {
     try {
       Storage.remove('priceCache');
       const start = performance.now();
-      const results = await IBKR.searchSymbol('AAPL');
+      const results = await MarketData.searchSymbol('AAPL');
       const elapsed = (performance.now() - start).toFixed(0);
 
       if (results && results.length > 0) {
@@ -388,11 +350,11 @@ const Settings = {
 
     // Step 1: Connection
     this._log('STEP 1: Yahoo Finance Connectivity');
-    this._log(`  CORS proxy: ${IBKR.corsProxy}`);
+    this._log(`  CORS proxy: ${MarketData.corsProxy}`);
     let connected = false;
     try {
       const start = performance.now();
-      connected = await IBKR.checkConnection();
+      connected = await MarketData.checkConnection();
       const elapsed = (performance.now() - start).toFixed(0);
       if (connected) {
         this._log(`  Status: CONNECTED (${elapsed}ms)`, 'ok');
@@ -416,7 +378,7 @@ const Settings = {
     this._log('STEP 2: Live Quote (SPY)');
     try {
       Storage.remove('priceCache');
-      const q = await IBKR.getQuote('SPY');
+      const q = await MarketData.getQuote('SPY');
       if (q && q.last > 0) {
         this._log(`  SPY Last: $${q.last.toFixed(2)}  Change: ${q.change >= 0 ? '+' : ''}${q.change.toFixed(2)}%`, 'ok');
       } else {
@@ -431,7 +393,7 @@ const Settings = {
     this._log('STEP 3: Historical Data (SPY 1M daily)');
     try {
       Storage.remove('historyCache');
-      const hist = await IBKR.getHistory('SPY', '1M', '1d');
+      const hist = await MarketData.getHistory('SPY', '1M', '1d');
       if (hist.length > 0) {
         this._log(`  Received ${hist.length} bars: ${hist[0].date} → ${hist[hist.length - 1].date}`, 'ok');
         const ret = ((hist[hist.length-1].close - hist[0].close) / hist[0].close * 100);
@@ -448,7 +410,7 @@ const Settings = {
     this._log('STEP 4: Symbol Search ("NVDA")');
     try {
       Storage.remove('priceCache');
-      const res = await IBKR.searchSymbol('NVDA');
+      const res = await MarketData.searchSymbol('NVDA');
       if (res.length > 0) {
         this._log(`  Found ${res.length} results`, 'ok');
         this._log(`  Top: ${res[0].ticker} — ${res[0].name}`, 'data');
@@ -471,7 +433,7 @@ const Settings = {
     for (const bm of benchmarks) {
       try {
         Storage.remove('historyCache');
-        const hist = await IBKR.getBenchmarkHistory(bm.key, '1M');
+        const hist = await MarketData.getBenchmarkHistory(bm.key, '1M');
         if (hist.length > 0) {
           const ret = ((hist[hist.length-1].close - hist[0].close) / hist[0].close * 100);
           this._log(`  ${bm.name}: ${hist.length} bars, 1M return: ${ret >= 0 ? '+' : ''}${ret.toFixed(2)}%`, 'ok');

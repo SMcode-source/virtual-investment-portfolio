@@ -64,7 +64,7 @@ const Analytics = {
               </tr>
             </thead>
             <tbody id="analytics-sharpe-body">
-              <tr><td colspan="7" class="text-center" style="padding:20px;color:var(--text-dim)">Connect to IBKR for benchmark data</td></tr>
+              <tr><td colspan="7" class="text-center" style="padding:20px;color:var(--text-dim)">Loading benchmark data...</td></tr>
             </tbody>
           </table>
         </div>
@@ -108,7 +108,7 @@ const Analytics = {
       </div>
     `;
 
-    // Load Sharpe data from IBKR
+    // Load Sharpe data
     this.loadSharpeData();
   },
 
@@ -200,7 +200,7 @@ const Analytics = {
 
     for (const bm of benchmarks) {
       try {
-        const history = await IBKR.getBenchmarkHistory(bm, '5Y');
+        const history = await MarketData.getBenchmarkHistory(bm, '5Y');
         const filtered = history.filter(d => d.date >= this.calcStartDate && d.date <= this.calcEndDate);
         const prices = filtered.map(d => d.close);
         const returns = Utils.dailyReturns(prices);
@@ -270,7 +270,7 @@ const Analytics = {
 
     for (const bm of benchmarks) {
       try {
-        const history = await IBKR.getBenchmarkHistory(bm, '1Y');
+        const history = await MarketData.getBenchmarkHistory(bm, '1Y');
         const prices = history.map(d => d.close);
         const p6m = prices.slice(-126);
         const p1y = prices;

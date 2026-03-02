@@ -365,7 +365,7 @@ const PublicView = {
     const canvas = document.getElementById('pub-perf-chart');
     if (!canvas) return;
 
-    const period = this.selectedPeriod === 'Custom' ? '5Y' : Utils.periodToIBKR(this.selectedPeriod);
+    const period = this.selectedPeriod === 'Custom' ? '5Y' : Utils.periodToRange(this.selectedPeriod);
 
     const seriesConfig = {
       sp500:  { name: 'S&P 500',    bmKey: 'S&P 500',    color: '#3b82f6' },
@@ -380,7 +380,7 @@ const PublicView = {
     const fetches = Object.entries(seriesConfig).map(async ([key, cfg]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        const history = await IBKR.getBenchmarkHistory(cfg.bmKey, period);
+        const history = await MarketData.getBenchmarkHistory(cfg.bmKey, period);
         let filtered = history;
         if (this.selectedPeriod === 'Custom' && this.customDateStart) {
           filtered = history.filter(d => d.date >= this.customDateStart && d.date <= (this.customDateEnd || '9999'));
@@ -406,7 +406,7 @@ const PublicView = {
       ctx.fillStyle = '#6b7280';
       ctx.font = '14px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Connect to IBKR Gateway for live chart data', canvas.width / 2, canvas.height / 2);
+      ctx.fillText('Waiting for Yahoo Finance data...', canvas.width / 2, canvas.height / 2);
       return;
     }
 
@@ -641,13 +641,13 @@ const PublicView = {
     });
 
     // Collect unique tickers for batch quote
-    const tickers = [...new Set(trades.map(t => t.ticker || t.conid).filter(Boolean))];
+    const tickers = [...new Set(trades.map(t => t.ticker).filter(Boolean))];
     const liveQuotes = {};
 
     // Fetch live prices for each unique ticker
     for (const key of tickers) {
       try {
-        const quote = await IBKR.getQuote(key);
+        const quote = await MarketData.getQuote(key);
         if (quote && quote.last) liveQuotes[key] = quote;
       } catch {}
     }
@@ -657,7 +657,7 @@ const PublicView = {
     tbody.innerHTML = sorted.map(t => {
       const totalVal = t.shares * t.price;
       const cashAfter = cashMap[t.id] || 0;
-      const quoteKey = t.ticker || t.conid;
+      const quoteKey = t.ticker;
       const liveQuote = liveQuotes[quoteKey];
       const currentPrice = liveQuote ? liveQuote.last : null;
       let tradePL = null;
@@ -697,7 +697,7 @@ const PublicView = {
 
     for (const bm of benchmarks) {
       try {
-        const history = await IBKR.getBenchmarkHistory(bm, '1Y');
+        const history = await MarketData.getBenchmarkHistory(bm, '1Y');
         const prices = history.map(d => d.close);
         const p6m = prices.slice(-126);
         const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m));
@@ -735,7 +735,7 @@ const PublicView = {
     for (const h of holdings) {
       let currentPrice = h.avgCost;
       try {
-        const quote = await IBKR.getQuote(h.ticker || h.conid);
+        const quote = await MarketData.getQuote(h.ticker);
         if (quote?.last) currentPrice = quote.last;
       } catch {}
       const mv = h.shares * currentPrice;

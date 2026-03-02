@@ -53,11 +53,11 @@ const Watchlist = {
     const results = document.getElementById('wl-results');
     if (!results || val.length < 1) { if (results) results.style.display = 'none'; return; }
     try {
-      const matches = await IBKR.searchSymbol(val.toUpperCase());
+      const matches = await MarketData.searchSymbol(val.toUpperCase());
       if (matches.length) {
         results.style.display = 'block';
         results.innerHTML = matches.slice(0, 6).map(m =>
-          `<div class="result-item" onclick="Watchlist.selectFromSearch('${Utils.escHtml(m.ticker)}','${Utils.escHtml(m.name)}',${m.conid || 0})">
+          `<div class="result-item" onclick="Watchlist.selectFromSearch('${Utils.escHtml(m.ticker)}','${Utils.escHtml(m.name)}')">
             <span class="ticker">${Utils.escHtml(m.ticker)}</span>
             <span class="name">${Utils.escHtml(m.name)}</span>
           </div>`
@@ -67,13 +67,13 @@ const Watchlist = {
   }, 300),
 
   _selectedName: '',
-  _selectedConid: null,
+  
 
-  selectFromSearch(ticker, name, conid) {
+  selectFromSearch(ticker, name) {
     document.getElementById('wl-ticker').value = ticker;
     document.getElementById('wl-results').style.display = 'none';
     this._selectedName = name;
-    this._selectedConid = conid;
+    
   },
 
   addTicker() {
@@ -87,14 +87,14 @@ const Watchlist = {
     items.push({
       ticker,
       name: this._selectedName || ticker,
-      conid: this._selectedConid,
+      
       alertPrice: null,
       alertTriggered: false,
       addedDate: new Date().toISOString()
     });
     Storage.saveWatchlist(items);
     this._selectedName = '';
-    this._selectedConid = null;
+    
     this.render(document.getElementById('page-content'));
   },
 
@@ -112,7 +112,7 @@ const Watchlist = {
     for (const item of items) {
       let price = 0, change = 0, high52 = 0, low52 = 0;
       try {
-        const quote = await IBKR.getQuote(item.ticker || item.conid);
+        const quote = await MarketData.getQuote(item.ticker);
         if (quote) {
           price = quote.last;
           change = quote.change;

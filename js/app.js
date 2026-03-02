@@ -26,9 +26,9 @@ const App = {
     // Handle hash routing
     window.addEventListener('hashchange', () => this.route());
 
-    // IBKR connection status
-    IBKR.onStatusChange(() => this.updateIBKRStatus());
-    IBKR.checkConnection();
+    // Market data connection status
+    MarketData.onStatusChange(() => this.updateMarketStatus());
+    MarketData.checkConnection();
 
     // Initial route
     this.route();
@@ -79,9 +79,9 @@ const App = {
     });
   },
 
-  updateIBKRStatus() {
-    const el = document.getElementById('ibkr-status');
-    if (el) el.innerHTML = IBKR.getStatusBadge();
+  updateMarketStatus() {
+    const el = document.getElementById('market-status');
+    if (el) el.innerHTML = MarketData.getStatusBadge();
   },
 
   renderPage(page, params = []) {

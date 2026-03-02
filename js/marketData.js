@@ -1,6 +1,5 @@
-// ibkr.js — Yahoo Finance direct integration (no bridge needed)
-// Uses a CORS proxy to call Yahoo Finance from the browser
-const IBKR = {
+// marketData.js — Yahoo Finance direct integration (browser-side via CORS proxy)
+const MarketData = {
   corsProxy: 'https://corsproxy.io/?url=',
   status: 'disconnected', // disconnected | connecting | connected
   listeners: [],
@@ -45,7 +44,7 @@ const IBKR = {
       this.setStatus('connected');
       return true;
     } catch (e) {
-      console.error('[IBKR] Connection check failed:', e.message);
+      console.error('[MarketData] Connection check failed:', e.message);
       this.setStatus('disconnected');
       return false;
     }
@@ -77,18 +76,11 @@ const IBKR = {
   },
 
   // --- Live Quote ---
-  async getQuote(tickerOrConid) {
-    const cached = Storage.getCachedPrice(tickerOrConid);
+  async getQuote(ticker) {
+    const cached = Storage.getCachedPrice(ticker);
     if (cached) return cached;
 
     try {
-      // Resolve ticker from conid if needed
-      let ticker = tickerOrConid;
-      if (typeof tickerOrConid === 'number' || /^\d+$/.test(tickerOrConid)) {
-        const bm = Object.values(this.benchmarkETFs).find(b => b.conid == tickerOrConid);
-        ticker = bm ? bm.ticker : String(tickerOrConid);
-      }
-
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
@@ -101,7 +93,6 @@ const IBKR = {
       const prevClose = meta.previousClose || meta.chartPreviousClose || 0;
 
       const result = {
-        conid: tickerOrConid,
         ticker: meta.symbol || ticker,
         last,
         open: q.open?.[0] || meta.regularMarketOpen || 0,
@@ -113,7 +104,7 @@ const IBKR = {
         timestamp: Date.now()
       };
 
-      Storage.setCachedPrice(tickerOrConid, result);
+      Storage.setCachedPrice(ticker, result);
       return result;
     } catch {
       return null;
@@ -121,18 +112,11 @@ const IBKR = {
   },
 
   // --- Historical Data ---
-  async getHistory(tickerOrConid, period = '1Y', bar = '1d') {
-    const cached = Storage.getCachedHistory(tickerOrConid, period);
+  async getHistory(ticker, period = '1Y', bar = '1d') {
+    const cached = Storage.getCachedHistory(ticker, period);
     if (cached) return cached;
 
     try {
-      // Resolve ticker
-      let ticker = tickerOrConid;
-      if (typeof tickerOrConid === 'number' || /^\d+$/.test(tickerOrConid)) {
-        const bm = Object.values(this.benchmarkETFs).find(b => b.conid == tickerOrConid);
-        ticker = bm ? bm.ticker : String(tickerOrConid);
-      }
-
       // Map period to Yahoo Finance range
       const rangeMap = {
         '1M': '1mo', '3M': '3mo', '6M': '6mo',
@@ -176,7 +160,7 @@ const IBKR = {
       }
 
       if (history.length) {
-        Storage.setCachedHistory(tickerOrConid, period, history);
+        Storage.setCachedHistory(ticker, period, history);
       }
       return history;
     } catch {
@@ -186,10 +170,10 @@ const IBKR = {
 
   // --- Benchmark ETFs ---
   benchmarkETFs: {
-    'S&P 500': { ticker: 'SPY', conid: 756733 },
-    'NASDAQ 100': { ticker: 'QQQ', conid: 320227571 },
-    'FTSE 100': { ticker: 'ISF.L', conid: 48231867 },
-    'MSCI World': { ticker: 'URTH', conid: 133271094 }
+    'S&P 500': { ticker: 'SPY' },
+    'NASDAQ 100': { ticker: 'QQQ' },
+    'FTSE 100': { ticker: 'ISF.L' },
+    'MSCI World': { ticker: 'URTH' }
   },
 
   async getBenchmarkHistory(benchmarkName, period = '1Y') {
@@ -199,11 +183,11 @@ const IBKR = {
   },
 
   // --- Batch Quotes ---
-  async getBatchQuotes(tickersOrConids) {
-    if (!tickersOrConids.length) return {};
+  async getBatchQuotes(tickers) {
+    if (!tickers.length) return {};
 
     const result = {};
-    for (const t of tickersOrConids) {
+    for (const t of tickers) {
       try {
         const q = await this.getQuote(t);
         if (q) {
@@ -230,8 +214,8 @@ const IBKR = {
       connecting: 'Connecting...',
       connected: 'Yahoo Finance'
     };
-    return `<span class="ibkr-status" style="background:${colors[this.status]}20;color:${colors[this.status]};border:1px solid ${colors[this.status]}40">${labels[this.status]}</span>`;
+    return `<span class="market-status" style="background:${colors[this.status]}20;color:${colors[this.status]};border:1px solid ${colors[this.status]}40">${labels[this.status]}</span>`;
   }
 };
 
-window.IBKR = IBKR;
+window.MarketData = MarketData;

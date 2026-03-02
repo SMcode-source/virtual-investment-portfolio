@@ -1,43 +1,30 @@
-// auth.js — Simple password gate for protected pages
-// Uses SHA-256 (Web Crypto API) + sessionStorage for session
+// auth.js — Fixed-credential authentication
+// Credentials can only be changed by updating this file and redeploying.
+// To reset, email: saptarshimanna95@gmail.com
 const Auth = {
   SESSION_KEY: 'vip_auth_session',
-  HASH_KEY: 'vip_auth_hash',
   SESSION_HOURS: 12,
+  RESET_EMAIL: 'saptarshimanna95@gmail.com',
+
+  // Hardcoded SHA-256 hashes — change these to update credentials
+  // To generate a new hash: echo -n "yourvalue" | sha256sum
+  VALID_USER_HASH: '12f80649f4412ed383a6334390dc4b3798924f9326e150503247c7419f2e37a0', // username
+  VALID_PASS_HASH: 'b8735a1c3beccd9301ce4f688c94cdcb64658b1a00805ad7329011051fe579fd', // password
+
   _redirectAfterLogin: null,
 
-  // --- Password Hashing (SHA-256) ---
-  async hashPassword(password) {
-    const data = new TextEncoder().encode(password);
+  // --- SHA-256 Hashing (Web Crypto API) ---
+  async hash(value) {
+    const data = new TextEncoder().encode(value);
     const buffer = await crypto.subtle.digest('SHA-256', data);
     return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
   },
 
-  // --- Password Management ---
-  hasPassword() {
-    return !!localStorage.getItem(this.HASH_KEY);
-  },
-
-  async setPassword(password) {
-    const hash = await this.hashPassword(password);
-    localStorage.setItem(this.HASH_KEY, hash);
-    this._createSession();
-    return true;
-  },
-
-  async changePassword(currentPassword, newPassword) {
-    if (!await this.verifyPassword(currentPassword)) {
-      return false;
-    }
-    const hash = await this.hashPassword(newPassword);
-    localStorage.setItem(this.HASH_KEY, hash);
-    return true;
-  },
-
-  async verifyPassword(password) {
-    const hash = await this.hashPassword(password);
-    const stored = localStorage.getItem(this.HASH_KEY);
-    return hash === stored;
+  // --- Verify credentials against hardcoded hashes ---
+  async verify(username, password) {
+    const userHash = await this.hash(username);
+    const passHash = await this.hash(password);
+    return userHash === this.VALID_USER_HASH && passHash === this.VALID_PASS_HASH;
   },
 
   // --- Session ---
@@ -58,8 +45,8 @@ const Auth = {
   },
 
   // --- Login / Logout ---
-  async login(password) {
-    if (await this.verifyPassword(password)) {
+  async login(username, password) {
+    if (await this.verify(username, password)) {
       this._createSession();
       return true;
     }
@@ -79,12 +66,6 @@ const Auth = {
     const page = this._redirectAfterLogin;
     this._redirectAfterLogin = null;
     return page || 'dashboard';
-  },
-
-  // --- Reset (for forgot password) ---
-  resetPassword() {
-    localStorage.removeItem(this.HASH_KEY);
-    sessionStorage.removeItem(this.SESSION_KEY);
   }
 };
 

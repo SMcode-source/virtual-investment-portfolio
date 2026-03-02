@@ -129,7 +129,7 @@ const Utils = {
     }
   },
 
-  periodToIBKR(period) {
+  periodToRange(period) {
     const map = { '1M': '1M', '3M': '3M', '6M': '6M', 'YTD': '1Y', '1Y': '1Y', '3Y': '3Y', '5Y': '5Y', 'All': '10Y' };
     return map[period] || '1Y';
   },

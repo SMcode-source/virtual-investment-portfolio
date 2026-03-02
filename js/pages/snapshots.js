@@ -69,7 +69,7 @@ const Snapshots = {
     for (const h of holdings) {
       let price = h.avgCost;
       try {
-        const quote = await IBKR.getQuote(h.ticker || h.conid);
+        const quote = await MarketData.getQuote(h.ticker);
         if (quote?.last) price = quote.last;
       } catch {}
       totalValue += h.shares * price;

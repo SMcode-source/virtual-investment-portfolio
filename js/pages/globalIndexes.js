@@ -226,7 +226,7 @@ const GlobalIndexes = {
     for (const cat of cats) {
       for (const etf of cat.etfs) {
         try {
-          const quote = await IBKR.getQuote(etf.ticker);
+          const quote = await MarketData.getQuote(etf.ticker);
           if (quote) {
             const el = document.getElementById(`etf-ytd-${etf.ticker.replace('.', '_')}`);
             if (el) {

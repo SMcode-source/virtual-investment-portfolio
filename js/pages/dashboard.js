@@ -17,7 +17,7 @@ const Dashboard = {
           <h1 class="page-title">Dashboard</h1>
           <p class="page-desc">${settings.portfolioName}</p>
         </div>
-        <div id="ibkr-badge">${IBKR.getStatusBadge()}</div>
+        <div id="market-badge">${MarketData.getStatusBadge()}</div>
       </div>
 
       <!-- Time Machine -->
@@ -182,14 +182,14 @@ const Dashboard = {
     const tbody = document.getElementById('holdings-body');
     if (!holdings.length) return;
 
-    // Try getting live prices from IBKR
+    // Try getting live prices from MarketData
     let totalMarketValue = cash;
     const rows = [];
 
     for (const h of holdings) {
       let currentPrice = h.avgCost; // fallback
       try {
-        const quote = await IBKR.getQuote(h.ticker || h.conid);
+        const quote = await MarketData.getQuote(h.ticker);
         if (quote && quote.last) currentPrice = quote.last;
       } catch {}
 
@@ -294,7 +294,7 @@ const Dashboard = {
     const canvas = document.getElementById('performance-chart');
     if (!canvas) return;
 
-    const period = Utils.periodToIBKR(this.selectedPeriod);
+    const period = Utils.periodToRange(this.selectedPeriod);
     const benchmarks = {
       sp500: { name: 'S&P 500', color: '#3b82f6', data: [] },
       nasdaq: { name: 'NASDAQ 100', color: '#f59e0b', data: [] },
@@ -307,7 +307,7 @@ const Dashboard = {
     const fetches = Object.entries(bmNames).map(async ([key, name]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        const history = await IBKR.getBenchmarkHistory(name, period);
+        const history = await MarketData.getBenchmarkHistory(name, period);
         benchmarks[key].data = history.map(d => d.close);
         benchmarks[key].dates = history.map(d => d.date);
       } catch {}
@@ -321,12 +321,12 @@ const Dashboard = {
     });
 
     if (!labels.length) {
-      // No IBKR data — show empty state
+      // No MarketData data — show empty state
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#6b7280';
       ctx.font = '14px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Connect to IBKR Gateway for live chart data', canvas.width / 2, canvas.height / 2);
+      ctx.fillText('Waiting for Yahoo Finance data...', canvas.width / 2, canvas.height / 2);
       return;
     }
 
@@ -439,7 +439,7 @@ const Dashboard = {
       </tr>`;
     });
 
-    tbody.innerHTML = rows.join('') || '<tr><td colspan="7" class="text-center" style="padding:20px;color:var(--text-dim)">No data available — connect to IBKR</td></tr>';
+    tbody.innerHTML = rows.join('') || '<tr><td colspan="7" class="text-center" style="padding:20px;color:var(--text-dim)">No data available</td></tr>';
   }
 };
 
