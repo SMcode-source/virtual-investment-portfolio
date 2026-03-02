@@ -89,14 +89,14 @@ const Utils = {
   // Render a Sharpe rating pill with hover tooltip showing calculation
   sharpePill(result, rating) {
     if (!rating) rating = this.sharpeRating(result.sharpe);
-    const tip = this.sharpeTooltip(result);
-    return `<span class="sharpe-tip"><span class="rating-pill" style="background:${rating.bg};color:${rating.color}">${result.sharpe.toFixed(2)} ${rating.label}</span><span class="sharpe-tip-box">${this.escHtml(tip)}</span></span>`;
+    const tip = this.sharpeTooltip(result).replace(/"/g, '&quot;');
+    return `<span class="sharpe-tip" data-sharpe-tip="${tip}"><span class="rating-pill" style="background:${rating.bg};color:${rating.color}">${result.sharpe.toFixed(2)} ${rating.label}</span></span>`;
   },
 
   // Render just the Sharpe number with tooltip (no rating label)
   sharpeValue(result) {
-    const tip = this.sharpeTooltip(result);
-    return `<span class="sharpe-tip" style="font-family:var(--font-mono);font-weight:600">${result.sharpe.toFixed(2)}<span class="sharpe-tip-box">${this.escHtml(tip)}</span></span>`;
+    const tip = this.sharpeTooltip(result).replace(/"/g, '&quot;');
+    return `<span class="sharpe-tip" data-sharpe-tip="${tip}" style="font-family:var(--font-mono);font-weight:600">${result.sharpe.toFixed(2)}</span>`;
   },
 
   // Daily returns from price series

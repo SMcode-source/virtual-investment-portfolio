@@ -11,6 +11,9 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 </head>
 <body>
+  <!-- Shared Sharpe tooltip popup (position:fixed, never clipped) -->
+  <div class="sharpe-tip-popup" id="sharpe-popup"></div>
+
   <!-- Global loading bar (top of viewport) -->
   <div class="loading-bar" id="loading-bar">
     <div class="loading-bar-track">
@@ -158,6 +161,51 @@
         if (window.innerWidth <= 768) toggleSidebar();
       });
     });
+
+    // Sharpe tooltip: event delegation for [data-sharpe-tip] hover
+    (function() {
+      const popup = document.getElementById('sharpe-popup');
+      let activeEl = null;
+
+      document.addEventListener('mouseover', function(e) {
+        const tip = e.target.closest('.sharpe-tip[data-sharpe-tip]');
+        if (!tip || tip === activeEl) return;
+        activeEl = tip;
+        popup.textContent = tip.getAttribute('data-sharpe-tip');
+
+        const rect = tip.getBoundingClientRect();
+        const pw = popup.offsetWidth || 280;
+        const ph = popup.offsetHeight || 200;
+
+        // Prefer above; fall below if not enough room
+        let top, cls;
+        if (rect.top - ph - 10 > 0) {
+          top = rect.top - ph - 8;
+          cls = 'above';
+        } else {
+          top = rect.bottom + 8;
+          cls = 'below';
+        }
+
+        let left = rect.left + rect.width / 2 - pw / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+
+        popup.className = 'sharpe-tip-popup visible ' + cls;
+        popup.style.top = top + 'px';
+        popup.style.left = left + 'px';
+      });
+
+      document.addEventListener('mouseout', function(e) {
+        const tip = e.target.closest('.sharpe-tip[data-sharpe-tip]');
+        if (tip && tip === activeEl) {
+          const related = e.relatedTarget;
+          if (!tip.contains(related)) {
+            popup.className = 'sharpe-tip-popup';
+            activeEl = null;
+          }
+        }
+      });
+    })();
   </script>
 </body>
 </html>

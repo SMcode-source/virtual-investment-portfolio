@@ -48,7 +48,18 @@ const Analytics = {
       <!-- 6M & 1Y Sharpe Table -->
       <div class="card" style="margin-bottom:24px">
         <div class="card-header">
-          <div class="card-title">Sharpe Ratio Comparison (6M & 1Y)</div>
+          <div>
+            <div class="card-title">Sharpe Ratio Comparison (6M & 1Y)</div>
+            <div class="card-subtitle">Uses your saved risk-free rate. Override below to recalculate.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:16px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Risk-Free Rate (%)</label>
+            <input type="number" class="form-control" id="sharpe-table-rf" value="${settings.riskFreeRate ?? 4.0}" step="0.1" min="0" max="20" style="width:120px">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="Analytics.recalcSharpeTable()">Recalculate</button>
+          <button class="btn btn-sm" onclick="Analytics.saveRfAndRecalc()" title="Save this rate to settings and recalculate everything">Save as Default & Recalculate</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -262,12 +273,13 @@ const Analytics = {
     `;
   },
 
-  async loadSharpeData() {
+  async loadSharpeData(overrideRf) {
     const tbody = document.getElementById('analytics-sharpe-body');
     if (!tbody) return;
 
+    const rf = overrideRf !== undefined ? overrideRf / 100 : (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
     const benchmarks = ['S&P 500', 'NASDAQ 100', 'FTSE 100', 'MSCI World'];
-    const rows = [{ name: 'Portfolio', r6m: { sharpe: 0, annReturn: 0, annVol: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0 } }];
+    const rows = [{ name: 'Portfolio', r6m: { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: rf, dataPoints: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: rf, dataPoints: 0 } }];
 
     for (const bm of benchmarks) {
       try {
@@ -275,12 +287,11 @@ const Analytics = {
         const prices = history.map(d => d.close);
         const p6m = prices.slice(-126);
         const p1y = prices;
-        const rf = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
         const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m), rf);
         const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(p1y), rf);
         rows.push({ name: bm, r6m, r1y });
       } catch {
-        rows.push({ name: bm, r6m: { sharpe: 0, annReturn: 0, annVol: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0 } });
+        rows.push({ name: bm, r6m: { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: rf, dataPoints: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: rf, dataPoints: 0 } });
       }
     }
 
@@ -295,6 +306,32 @@ const Analytics = {
         <td class="text-center">${Utils.sharpePill(r.r1y)}</td>
       </tr>`;
     }).join('');
+  },
+
+  // Recalculate the 6M/1Y Sharpe table using the override input
+  recalcSharpeTable() {
+    const rfInput = document.getElementById('sharpe-table-rf');
+    const rf = parseFloat(rfInput?.value) || 4.0;
+    // Also update the calculator's risk-free rate to stay in sync
+    this.calcRiskFree = rf;
+    const calcRfInput = document.getElementById('calc-rf');
+    if (calcRfInput) calcRfInput.value = rf;
+    this.loadSharpeData(rf);
+  },
+
+  // Save the risk-free rate to settings and recalculate everything
+  saveRfAndRecalc() {
+    const rfInput = document.getElementById('sharpe-table-rf');
+    const rf = parseFloat(rfInput?.value) || 4.0;
+    const s = Storage.getSettings();
+    s.riskFreeRate = rf;
+    Storage.saveSettings(s);
+    this.calcRiskFree = rf;
+    const calcRfInput = document.getElementById('calc-rf');
+    if (calcRfInput) calcRfInput.value = rf;
+    this.loadSharpeData(rf);
+    // Also recalculate the custom calculator if results exist
+    if (this.calcResults) this.calculate();
   }
 };
 
