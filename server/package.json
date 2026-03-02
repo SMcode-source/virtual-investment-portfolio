@@ -1,0 +1,13 @@
+{
+  "name": "portfolio-bridge",
+  "version": "1.0.0",
+  "description": "WebSocket bridge — fetches Yahoo Finance data for the Virtual Investment Portfolio browser app",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js",
+    "dev": "node bridge.js --verbose"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

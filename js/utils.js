@@ -1,0 +1,170 @@
+// utils.js — Formatting helpers, computation utilities
+const Utils = {
+  // --- Formatting ---
+  formatCurrency(val, currency = 'USD', compact = false) {
+    if (val == null || isNaN(val)) return '$0.00';
+    const opts = { style: 'currency', currency };
+    if (compact && Math.abs(val) >= 1000) {
+      opts.notation = 'compact';
+      opts.maximumFractionDigits = 1;
+    } else {
+      opts.minimumFractionDigits = 2;
+      opts.maximumFractionDigits = 2;
+    }
+    return new Intl.NumberFormat('en-US', opts).format(val);
+  },
+
+  formatPercent(val, digits = 2) {
+    if (val == null || isNaN(val)) return '0.00%';
+    return (val >= 0 ? '+' : '') + val.toFixed(digits) + '%';
+  },
+
+  formatNumber(val, digits = 0) {
+    if (val == null || isNaN(val)) return '0';
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(val);
+  },
+
+  formatDate(d) {
+    if (!d) return '';
+    const date = new Date(d);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  },
+
+  formatDateTime(d) {
+    if (!d) return '';
+    const date = new Date(d);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  },
+
+  // --- Color helpers ---
+  plColor(val) { return val >= 0 ? '#22c55e' : '#ef4444'; },
+  plClass(val) { return val >= 0 ? 'positive' : 'negative'; },
+
+  // --- Country flags ---
+  countryFlags: {
+    'USA': '🇺🇸', 'US': '🇺🇸', 'UK': '🇬🇧', 'GB': '🇬🇧', 'DE': '🇩🇪', 'Germany': '🇩🇪',
+    'FR': '🇫🇷', 'France': '🇫🇷', 'JP': '🇯🇵', 'Japan': '🇯🇵', 'CN': '🇨🇳', 'China': '🇨🇳',
+    'CA': '🇨🇦', 'Canada': '🇨🇦', 'AU': '🇦🇺', 'Australia': '🇦🇺', 'KR': '🇰🇷', 'Korea': '🇰🇷',
+    'TW': '🇹🇼', 'Taiwan': '🇹🇼', 'IN': '🇮🇳', 'India': '🇮🇳', 'BR': '🇧🇷', 'Brazil': '🇧🇷',
+    'HK': '🇭🇰', 'SG': '🇸🇬', 'NL': '🇳🇱', 'Netherlands': '🇳🇱', 'CH': '🇨🇭', 'Switzerland': '🇨🇭',
+    'SE': '🇸🇪', 'Sweden': '🇸🇪', 'IE': '🇮🇪', 'Ireland': '🇮🇪', 'IL': '🇮🇱', 'Israel': '🇮🇱',
+    'IT': '🇮🇹', 'Italy': '🇮🇹', 'ES': '🇪🇸', 'Spain': '🇪🇸', 'MX': '🇲🇽', 'Mexico': '🇲🇽',
+    'TR': '🇹🇷', 'Turkey': '🇹🇷', 'SA': '🇸🇦', 'ZA': '🇿🇦'
+  },
+  getFlag(country) { return this.countryFlags[country] || '🌐'; },
+
+  // --- Sharpe Ratio Calculation ---
+  calcSharpeRatio(returns, riskFreeRate = 0.05) {
+    if (!returns || returns.length < 2) return { sharpe: 0, annReturn: 0, annVol: 0 };
+    const n = returns.length;
+    const dailyRf = riskFreeRate / 252;
+    const excessReturns = returns.map(r => r - dailyRf);
+    const mean = excessReturns.reduce((a, b) => a + b, 0) / n;
+    const variance = excessReturns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (n - 1);
+    const stdDev = Math.sqrt(variance);
+    const annReturn = mean * 252;
+    const annVol = stdDev * Math.sqrt(252);
+    const sharpe = annVol > 0 ? annReturn / annVol : 0;
+    return { sharpe: Math.round(sharpe * 100) / 100, annReturn: annReturn * 100, annVol: annVol * 100 };
+  },
+
+  // Sharpe rating
+  sharpeRating(val) {
+    if (val >= 1.5) return { label: 'Excellent', color: '#22c55e', bg: '#22c55e20' };
+    if (val >= 0.5) return { label: 'Good', color: '#3b82f6', bg: '#3b82f620' };
+    if (val >= 0) return { label: 'Fair', color: '#f59e0b', bg: '#f59e0b20' };
+    return { label: 'Poor', color: '#ef4444', bg: '#ef444420' };
+  },
+
+  // Daily returns from price series
+  dailyReturns(prices) {
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      if (prices[i - 1] > 0) returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
+    }
+    return returns;
+  },
+
+  // Cumulative return series (for chart)
+  cumulativeReturns(prices) {
+    if (!prices.length) return [];
+    const base = prices[0];
+    return prices.map(p => ((p - base) / base) * 100);
+  },
+
+  // Max drawdown
+  maxDrawdown(prices) {
+    let peak = prices[0] || 0;
+    let maxDd = 0;
+    for (const p of prices) {
+      if (p > peak) peak = p;
+      const dd = (peak - p) / peak;
+      if (dd > maxDd) maxDd = dd;
+    }
+    return maxDd * 100;
+  },
+
+  // --- Date helpers ---
+  dateOffset(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  },
+
+  startOfYear() {
+    return `${new Date().getFullYear()}-01-01`;
+  },
+
+  periodToStartDate(period) {
+    const now = new Date();
+    switch (period) {
+      case '1M': return new Date(now.setMonth(now.getMonth() - 1)).toISOString().split('T')[0];
+      case '3M': return new Date(now.setMonth(now.getMonth() - 3)).toISOString().split('T')[0];
+      case '6M': return new Date(now.setMonth(now.getMonth() - 6)).toISOString().split('T')[0];
+      case 'YTD': return this.startOfYear();
+      case '1Y': return new Date(now.setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
+      case '3Y': return new Date(now.setFullYear(now.getFullYear() - 3)).toISOString().split('T')[0];
+      case '5Y': return new Date(now.setFullYear(now.getFullYear() - 5)).toISOString().split('T')[0];
+      default: return new Date(now.setFullYear(now.getFullYear() - 5)).toISOString().split('T')[0];
+    }
+  },
+
+  periodToIBKR(period) {
+    const map = { '1M': '1M', '3M': '3M', '6M': '6M', 'YTD': '1Y', '1Y': '1Y', '3Y': '3Y', '5Y': '5Y', 'All': '10Y' };
+    return map[period] || '1Y';
+  },
+
+  // --- Debounce ---
+  debounce(fn, ms = 300) {
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+  },
+
+  // Generate unique ID
+  uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
+
+  // Star rating HTML
+  stars(n, max = 5) {
+    let html = '';
+    for (let i = 1; i <= max; i++) {
+      html += `<span class="star ${i <= n ? 'filled' : ''}">${i <= n ? '★' : '☆'}</span>`;
+    }
+    return html;
+  },
+
+  // Sentiment badge
+  sentimentBadge(s) {
+    const colors = { Bullish: '#22c55e', Neutral: '#f59e0b', Bearish: '#ef4444' };
+    const c = colors[s] || '#6b7280';
+    return `<span class="badge" style="background:${c}20;color:${c};border:1px solid ${c}40">${s}</span>`;
+  },
+
+  // Escape HTML
+  escHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+};
+
+window.Utils = Utils;

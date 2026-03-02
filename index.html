@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Investment Portfolio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="icon">📊</div>
+          <span>Portfolio</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Overview</div>
+        <div class="nav-item active" data-page="dashboard" onclick="App.navigate('dashboard')">
+          <span class="nav-icon">📈</span> Dashboard
+        </div>
+
+        <div class="nav-section-label">Trading</div>
+        <div class="nav-item" data-page="logTrade" onclick="App.navigate('logTrade')">
+          <span class="nav-icon">📝</span> Log Trade <span class="nav-lock" style="display:none;opacity:0.4;font-size:0.7em;margin-left:auto">🔒</span>
+        </div>
+        <div class="nav-item" data-page="tradeHistory" onclick="App.navigate('tradeHistory')">
+          <span class="nav-icon">📋</span> Trade History
+        </div>
+
+        <div class="nav-section-label">Research</div>
+        <div class="nav-item" data-page="journal" onclick="App.navigate('journal')">
+          <span class="nav-icon">📓</span> Journal <span class="nav-lock" style="display:none;opacity:0.4;font-size:0.7em;margin-left:auto">🔒</span>
+        </div>
+        <div class="nav-item" data-page="thinkPieces" onclick="App.navigate('thinkPieces')">
+          <span class="nav-icon">💡</span> Think Pieces <span class="nav-lock" style="display:none;opacity:0.4;font-size:0.7em;margin-left:auto">🔒</span>
+        </div>
+
+        <div class="nav-section-label">Analysis</div>
+        <div class="nav-item" data-page="analytics" onclick="App.navigate('analytics')">
+          <span class="nav-icon">📊</span> Analytics
+        </div>
+        <div class="nav-item" data-page="globalIndexes" onclick="App.navigate('globalIndexes')">
+          <span class="nav-icon">🌍</span> Global Indexes
+        </div>
+        <div class="nav-item" data-page="watchlist" onclick="App.navigate('watchlist')">
+          <span class="nav-icon">👁</span> Watchlist <span class="nav-lock" style="display:none;opacity:0.4;font-size:0.7em;margin-left:auto">🔒</span>
+        </div>
+
+        <div class="nav-section-label">Portfolio</div>
+        <div class="nav-item" data-page="snapshots" onclick="App.navigate('snapshots')">
+          <span class="nav-icon">📸</span> Snapshots <span class="nav-lock" style="display:none;opacity:0.4;font-size:0.7em;margin-left:auto">🔒</span>
+        </div>
+        <div class="nav-item" data-page="publicView" onclick="App.navigate('publicView')">
+          <span class="nav-icon">🌐</span> Public View
+        </div>
+
+        <div class="nav-section-label">Config</div>
+        <div class="nav-item" data-page="settings" onclick="App.navigate('settings')">
+          <span class="nav-icon">⚙️</span> Settings <span class="nav-lock" style="display:none;opacity:0.4;font-size:0.7em;margin-left:auto">🔒</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div id="ibkr-status"></div>
+        <div id="logout-btn" class="nav-item" style="display:none;margin-top:8px;color:var(--red)" onclick="App.logout()">
+          <span class="nav-icon">🚪</span> Sign Out
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="page-content">
+      <div class="loading-spinner"><div class="spinner"></div></div>
+    </main>
+  </div>
+
+  <!-- Scripts (order matters) -->
+  <script src="js/storage.js"></script>
+  <script src="js/ibkr.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/pages/dashboard.js"></script>
+  <script src="js/pages/logTrade.js"></script>
+  <script src="js/pages/journal.js"></script>
+  <script src="js/pages/tradeHistory.js"></script>
+  <script src="js/pages/analytics.js"></script>
+  <script src="js/pages/globalIndexes.js"></script>
+  <script src="js/pages/watchlist.js"></script>
+  <script src="js/pages/thinkPieces.js"></script>
+  <script src="js/pages/snapshots.js"></script>
+  <script src="js/pages/publicView.js"></script>
+  <script src="js/pages/settings.js"></script>
+  <script src="js/pages/login.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
