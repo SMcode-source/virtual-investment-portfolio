@@ -34,10 +34,6 @@ const PublicView = {
         <div class="public-header">
           <h1>${Utils.escHtml(settings.portfolioName)}</h1>
           <div class="desc">Medium to Long Term Systematic and Conviction-Based Investing · Updated live</div>
-          <div style="display:flex;gap:12px;margin-top:16px;position:relative;z-index:1">
-            <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:white">Follow</button>
-            <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:white">Share</button>
-          </div>
           <div class="kpi-grid" style="margin-top:20px;position:relative;z-index:1" id="pub-kpis">
             ${pub.showExactValue ? `
               <div class="kpi-card" style="background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15)">
