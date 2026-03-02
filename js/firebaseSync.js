@@ -45,6 +45,9 @@ const FirebaseSync = {
       // Start auto-sync every 5 minutes
       this._startAutoSync();
 
+      // Pull fresh data when user switches back to this browser tab
+      this._listenForTabFocus();
+
       this.setStatus('synced');
       console.log('[Sync] Initial pull complete, live sync active, auto-sync every 5min');
     } catch (e) {
@@ -205,6 +208,21 @@ const FirebaseSync = {
         this._pushAll().catch(() => {});
       }
       if (callback) callback(user);
+    });
+  },
+
+  // --- Pull from Firebase when user returns to this browser tab ---
+  _listenForTabFocus() {
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible' && FirebaseApp.ready) {
+        console.log('[Sync] Tab became visible — pulling latest from cloud');
+        try {
+          await this._pullAll();
+          this.setStatus('synced');
+        } catch (e) {
+          console.error('[Sync] Tab focus pull failed:', e.message);
+        }
+      }
     });
   },
 

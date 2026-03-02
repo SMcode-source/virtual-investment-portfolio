@@ -11,14 +11,47 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 </head>
 <body>
+  <!-- Global loading bar (top of viewport) -->
+  <div class="loading-bar" id="loading-bar">
+    <div class="loading-bar-track">
+      <div class="loading-bar-fill" id="loading-bar-fill"></div>
+    </div>
+  </div>
+
+  <!-- Initial loading overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-icon">📊</div>
+    <div style="font-size:1.1rem;font-weight:600;color:var(--text)">Virtual Investment Portfolio</div>
+    <div class="loading-text" id="loading-message">Loading your portfolio...</div>
+    <div class="loading-steps" id="loading-steps">
+      <div class="loading-step active" id="step-firebase">
+        <span class="loading-step-icon">◌</span> Connecting to cloud database
+      </div>
+      <div class="loading-step" id="step-sync">
+        <span class="loading-step-icon">◌</span> Syncing portfolio data
+      </div>
+      <div class="loading-step" id="step-market">
+        <span class="loading-step-icon">◌</span> Connecting to Yahoo Finance
+      </div>
+    </div>
+  </div>
+
   <div class="app-layout">
+    <!-- Mobile hamburger button -->
+    <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()">
+      <span></span><span></span><span></span>
+    </button>
+    <!-- Mobile sidebar overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="sidebar-logo">
           <div class="icon">📊</div>
           <span>Portfolio</span>
         </div>
+        <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
       </div>
 
       <nav class="sidebar-nav">
@@ -108,5 +141,23 @@
   <script src="js/pages/settings.js"></script>
   <script src="js/pages/login.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    // Mobile sidebar toggle
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      const hamburger = document.getElementById('hamburger-btn');
+      const isOpen = sidebar.classList.contains('open');
+      sidebar.classList.toggle('open', !isOpen);
+      overlay.classList.toggle('active', !isOpen);
+      hamburger.classList.toggle('active', !isOpen);
+    }
+    // Auto-close sidebar on nav click (mobile)
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.addEventListener('click', () => {
+        if (window.innerWidth <= 768) toggleSidebar();
+      });
+    });
+  </script>
 </body>
 </html>

@@ -5,6 +5,10 @@ const MarketData = {
   listeners: [],
   _lastCallTime: 0,
   _minDelay: 2500, // 2.5s between Yahoo API calls
+  _disconnectTimer: null,
+  _reconnectInterval: null,
+  _DISCONNECT_FALLBACK_MS: 20 * 1000, // 20 seconds
+  _RECONNECT_CHECK_MS: 30 * 1000, // check every 30s for reconnection
 
   onStatusChange(fn) { this.listeners.push(fn); },
   _notify() { this.listeners.forEach(fn => fn(this.status)); },
@@ -13,6 +17,65 @@ const MarketData = {
     if (this.status !== s) {
       this.status = s;
       this._notify();
+
+      // When Yahoo disconnects, start a 20s timer to pull from Firebase + start reconnect polling
+      if (s === 'disconnected') {
+        this._startDisconnectFallback();
+        this._startReconnectPolling();
+      } else if (s === 'connected') {
+        this._clearDisconnectFallback();
+        this._stopReconnectPolling();
+      }
+    }
+  },
+
+  _startDisconnectFallback() {
+    this._clearDisconnectFallback();
+    this._disconnectTimer = setTimeout(async () => {
+      console.log('[MarketData] Yahoo disconnected for 20s — pulling data from Firebase');
+      if (typeof FirebaseSync !== 'undefined' && FirebaseApp.ready) {
+        try {
+          await FirebaseSync.forcePull();
+          console.log('[MarketData] Firebase fallback pull complete');
+        } catch (e) {
+          console.error('[MarketData] Firebase fallback pull failed:', e.message);
+        }
+      }
+    }, this._DISCONNECT_FALLBACK_MS);
+  },
+
+  _clearDisconnectFallback() {
+    if (this._disconnectTimer) {
+      clearTimeout(this._disconnectTimer);
+      this._disconnectTimer = null;
+    }
+  },
+
+  // Periodically try to reconnect to Yahoo when disconnected
+  _startReconnectPolling() {
+    this._stopReconnectPolling();
+    this._reconnectInterval = setInterval(async () => {
+      if (this.status === 'connected') {
+        this._stopReconnectPolling();
+        return;
+      }
+      console.log('[MarketData] Attempting Yahoo Finance reconnection...');
+      try {
+        const url = 'https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=1d&interval=1d';
+        await this._yf(url);
+        // Reconnected!
+        this.setStatus('connected');
+        console.log('[MarketData] Yahoo Finance reconnected — resuming live data');
+      } catch {
+        // Still disconnected, will try again
+      }
+    }, this._RECONNECT_CHECK_MS);
+  },
+
+  _stopReconnectPolling() {
+    if (this._reconnectInterval) {
+      clearInterval(this._reconnectInterval);
+      this._reconnectInterval = null;
     }
   },
 
