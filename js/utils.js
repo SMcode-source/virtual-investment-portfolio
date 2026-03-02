@@ -55,7 +55,7 @@ const Utils = {
 
   // --- Sharpe Ratio Calculation ---
   calcSharpeRatio(returns, riskFreeRate = 0.04) {
-    if (!returns || returns.length < 2) return { sharpe: 0, annReturn: 0, annVol: 0 };
+    if (!returns || returns.length < 2) return { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate, dataPoints: 0 };
     const n = returns.length;
     const dailyRf = riskFreeRate / 252;
     const excessReturns = returns.map(r => r - dailyRf);
@@ -65,7 +65,17 @@ const Utils = {
     const annReturn = mean * 252;
     const annVol = stdDev * Math.sqrt(252);
     const sharpe = annVol > 0 ? annReturn / annVol : 0;
-    return { sharpe: Math.round(sharpe * 100) / 100, annReturn: annReturn * 100, annVol: annVol * 100 };
+    return { sharpe: Math.round(sharpe * 100) / 100, annReturn: annReturn * 100, annVol: annVol * 100, riskFreeRate, dataPoints: n };
+  },
+
+  // Build a tooltip string showing the Sharpe calculation breakdown
+  sharpeTooltip(r) {
+    const rf = ((r.riskFreeRate || 0) * 100).toFixed(1);
+    const ret = r.annReturn.toFixed(2);
+    const vol = r.annVol.toFixed(2);
+    const excess = (r.annReturn - (r.riskFreeRate || 0) * 100).toFixed(2);
+    const pts = r.dataPoints || 0;
+    return `Sharpe = (Ann. Return \u2212 Rf) \u00F7 Ann. Volatility\n= (${ret}% \u2212 ${rf}%) \u00F7 ${vol}%\n= ${excess}% \u00F7 ${vol}%\n= ${r.sharpe.toFixed(2)}\n\nAnn. Return: ${ret}%\nAnn. Volatility: ${vol}%\nRisk-Free Rate (Rf): ${rf}%\nData Points: ${pts} days`;
   },
 
   // Sharpe rating
@@ -74,6 +84,19 @@ const Utils = {
     if (val >= 0.5) return { label: 'Good', color: '#3b82f6', bg: '#3b82f620' };
     if (val >= 0) return { label: 'Fair', color: '#f59e0b', bg: '#f59e0b20' };
     return { label: 'Poor', color: '#ef4444', bg: '#ef444420' };
+  },
+
+  // Render a Sharpe rating pill with hover tooltip showing calculation
+  sharpePill(result, rating) {
+    if (!rating) rating = this.sharpeRating(result.sharpe);
+    const tip = this.sharpeTooltip(result);
+    return `<span class="sharpe-tip"><span class="rating-pill" style="background:${rating.bg};color:${rating.color}">${result.sharpe.toFixed(2)} ${rating.label}</span><span class="sharpe-tip-box">${this.escHtml(tip)}</span></span>`;
+  },
+
+  // Render just the Sharpe number with tooltip (no rating label)
+  sharpeValue(result) {
+    const tip = this.sharpeTooltip(result);
+    return `<span class="sharpe-tip" style="font-family:var(--font-mono);font-weight:600">${result.sharpe.toFixed(2)}<span class="sharpe-tip-box">${this.escHtml(tip)}</span></span>`;
   },
 
   // Daily returns from price series

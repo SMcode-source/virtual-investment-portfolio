@@ -710,16 +710,14 @@ const PublicView = {
     }
 
     tbody.innerHTML = rows.map(r => {
-      const rat6 = Utils.sharpeRating(r.r6m.sharpe);
-      const rat1 = Utils.sharpeRating(r.r1y.sharpe);
       return `<tr>
         <td><strong>${r.name}</strong></td>
         <td class="text-right">${Utils.formatPercent(r.r6m.annReturn)}</td>
         <td class="text-right">${r.r6m.annVol.toFixed(1)}%</td>
-        <td class="text-center"><span class="rating-pill" style="background:${rat6.bg};color:${rat6.color}">${r.r6m.sharpe.toFixed(2)} ${rat6.label}</span></td>
+        <td class="text-center">${Utils.sharpePill(r.r6m)}</td>
         <td class="text-right">${Utils.formatPercent(r.r1y.annReturn)}</td>
         <td class="text-right">${r.r1y.annVol.toFixed(1)}%</td>
-        <td class="text-center"><span class="rating-pill" style="background:${rat1.bg};color:${rat1.color}">${r.r1y.sharpe.toFixed(2)} ${rat1.label}</span></td>
+        <td class="text-center">${Utils.sharpePill(r.r1y)}</td>
       </tr>`;
     }).join('');
   },

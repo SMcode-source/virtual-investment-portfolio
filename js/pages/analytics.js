@@ -208,12 +208,12 @@ const Analytics = {
         const sharpe = Utils.calcSharpeRatio(returns, this.calcRiskFree / 100);
         results.push({ name: bm, ...sharpe, dataPoints: filtered.length });
       } catch {
-        results.push({ name: bm, sharpe: 0, annReturn: 0, annVol: 0, dataPoints: 0 });
+        results.push({ name: bm, sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: this.calcRiskFree / 100, dataPoints: 0 });
       }
     }
 
     // Portfolio Sharpe (placeholder — needs daily portfolio values)
-    results.unshift({ name: 'Portfolio', sharpe: 0, annReturn: 0, annVol: 0, dataPoints: 0 });
+    results.unshift({ name: 'Portfolio', sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: this.calcRiskFree / 100, dataPoints: 0 });
 
     this.calcResults = results;
 
@@ -248,7 +248,7 @@ const Analytics = {
                 <td><strong>${r.name}</strong></td>
                 <td class="text-right ${Utils.plClass(r.annReturn)}">${Utils.formatPercent(r.annReturn)}</td>
                 <td class="text-right">${r.annVol.toFixed(1)}%</td>
-                <td class="text-center" style="font-family:var(--font-mono);font-weight:600">${r.sharpe.toFixed(2)}</td>
+                <td class="text-center">${Utils.sharpeValue(r)}</td>
                 <td class="text-center"><span class="rating-pill" style="background:${rating.bg};color:${rating.color}">${rating.label}</span></td>
               </tr>`;
             }).join('')}
@@ -285,16 +285,14 @@ const Analytics = {
     }
 
     tbody.innerHTML = rows.map(r => {
-      const rat6 = Utils.sharpeRating(r.r6m.sharpe);
-      const rat1 = Utils.sharpeRating(r.r1y.sharpe);
       return `<tr>
         <td><strong>${r.name}</strong></td>
         <td class="text-right">${Utils.formatPercent(r.r6m.annReturn)}</td>
         <td class="text-right">${r.r6m.annVol.toFixed(1)}%</td>
-        <td class="text-center"><span class="rating-pill" style="background:${rat6.bg};color:${rat6.color}">${r.r6m.sharpe.toFixed(2)} ${rat6.label}</span></td>
+        <td class="text-center">${Utils.sharpePill(r.r6m)}</td>
         <td class="text-right">${Utils.formatPercent(r.r1y.annReturn)}</td>
         <td class="text-right">${r.r1y.annVol.toFixed(1)}%</td>
-        <td class="text-center"><span class="rating-pill" style="background:${rat1.bg};color:${rat1.color}">${r.r1y.sharpe.toFixed(2)} ${rat1.label}</span></td>
+        <td class="text-center">${Utils.sharpePill(r.r1y)}</td>
       </tr>`;
     }).join('');
   }

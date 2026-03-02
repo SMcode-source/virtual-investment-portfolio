@@ -432,10 +432,10 @@ const Dashboard = {
         <td><strong>${Utils.escHtml(s.name)}</strong></td>
         <td class="text-right">${Utils.formatPercent(r6m.annReturn)}</td>
         <td class="text-right">${r6m.annVol.toFixed(1)}%</td>
-        <td class="text-center"><span class="rating-pill" style="background:${rating6m.bg};color:${rating6m.color}">${r6m.sharpe.toFixed(2)} ${rating6m.label}</span></td>
+        <td class="text-center">${Utils.sharpePill(r6m, rating6m)}</td>
         <td class="text-right">${Utils.formatPercent(r1y.annReturn)}</td>
         <td class="text-right">${r1y.annVol.toFixed(1)}%</td>
-        <td class="text-center"><span class="rating-pill" style="background:${rating1y.bg};color:${rating1y.color}">${r1y.sharpe.toFixed(2)} ${rating1y.label}</span></td>
+        <td class="text-center">${Utils.sharpePill(r1y, rating1y)}</td>
       </tr>`;
     });
 
