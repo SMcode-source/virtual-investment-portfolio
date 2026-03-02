@@ -44,24 +44,26 @@ const Auth = {
     }
   },
 
-  // Firebase Auth email (used for cloud sync sign-in)
-  FIREBASE_EMAIL: 'saptarshimanna95@gmail.com',
-
   // --- Login / Logout ---
   async login(username, password) {
     if (await this.verify(username, password)) {
       this._createSession();
-      // Also sign into Firebase for cloud sync (uses same password)
-      if (typeof FirebaseSync !== 'undefined' && FirebaseApp.ready) {
-        try {
-          await FirebaseSync.signIn(this.FIREBASE_EMAIL, password);
-        } catch (e) {
-          console.warn('[Auth] Firebase sign-in failed (cloud sync disabled):', e.message);
-        }
-      }
       return true;
     }
     return false;
+  },
+
+  // --- Google Sign-In for Cloud Sync (separate from site auth) ---
+  async signInWithGoogle() {
+    if (typeof FirebaseSync === 'undefined' || !FirebaseApp.ready) {
+      return { ok: false, error: 'Firebase not configured' };
+    }
+    try {
+      const success = await FirebaseSync.signInWithGoogle();
+      return { ok: success };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
   },
 
   logout() {

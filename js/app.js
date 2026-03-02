@@ -31,6 +31,10 @@ const App = {
       FirebaseApp.init();
       FirebaseSync.init();
       FirebaseSync.onStatusChange(() => this.updateSyncStatus());
+      // Listen for auth state restoration (Google sign-in persists across sessions)
+      FirebaseSync.onAuthReady((user) => {
+        this.updateSyncStatus();
+      });
     }
 
     // Market data connection status

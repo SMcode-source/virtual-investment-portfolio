@@ -168,25 +168,46 @@ const FirebaseSync = {
     }
   },
 
-  // --- Firebase Auth: sign in with email/password ---
-  async signIn(email, password) {
+  // --- Firebase Auth: sign in with Google popup ---
+  async signInWithGoogle() {
     if (!FirebaseApp.ready || !FirebaseApp.auth) return false;
     try {
-      await FirebaseApp.auth.signInWithEmailAndPassword(email, password);
-      console.log('[Sync] Firebase auth successful');
+      const provider = new firebase.auth.GoogleAuthProvider();
+      const result = await FirebaseApp.auth.signInWithPopup(provider);
+      console.log('[Sync] Google sign-in successful:', result.user.email);
       // After signing in, push local data to cloud
       await this._pushAll();
+      this.setStatus('synced');
       return true;
     } catch (e) {
-      console.error('[Sync] Firebase auth failed:', e.message);
+      console.error('[Sync] Google sign-in failed:', e.message);
       return false;
     }
+  },
+
+  // Check if already signed into Firebase (persisted across sessions)
+  isFirebaseAuthenticated() {
+    return !!(FirebaseApp.auth?.currentUser);
+  },
+
+  // Listen for Firebase auth state changes
+  onAuthReady(callback) {
+    if (!FirebaseApp.ready || !FirebaseApp.auth) return;
+    FirebaseApp.auth.onAuthStateChanged((user) => {
+      if (user) {
+        console.log('[Sync] Firebase user restored:', user.email);
+        // Auto-push on auth restore
+        this._pushAll().catch(() => {});
+      }
+      if (callback) callback(user);
+    });
   },
 
   signOut() {
     if (FirebaseApp.auth) {
       FirebaseApp.auth.signOut();
     }
+    this.setStatus('offline');
   },
 
   // --- Status badge for UI ---
