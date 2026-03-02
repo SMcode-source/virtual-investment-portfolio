@@ -60,7 +60,7 @@ const Dashboard = {
         <div class="chart-controls">
           <span class="label">Period:</span>
           <div class="btn-group" id="period-btns">
-            ${['1M','3M','6M','YTD','1Y','3Y','5Y','All'].map(p =>
+            ${['1M','3M','6M','YTD','1Y','2Y','5Y','All'].map(p =>
               `<button class="btn btn-sm ${p === this.selectedPeriod ? 'active' : ''}" onclick="Dashboard.setPeriod('${p}')">${p}</button>`
             ).join('')}
           </div>

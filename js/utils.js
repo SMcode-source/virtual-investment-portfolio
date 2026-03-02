@@ -71,11 +71,10 @@ const Utils = {
   // Build a tooltip string showing the Sharpe calculation breakdown
   sharpeTooltip(r) {
     const rf = ((r.riskFreeRate || 0) * 100).toFixed(1);
-    const ret = r.annReturn.toFixed(2);
+    const excessRet = r.annReturn.toFixed(2);
     const vol = r.annVol.toFixed(2);
-    const excess = (r.annReturn - (r.riskFreeRate || 0) * 100).toFixed(2);
     const pts = r.dataPoints || 0;
-    return `Sharpe = (Ann. Return \u2212 Rf) \u00F7 Ann. Volatility\n= (${ret}% \u2212 ${rf}%) \u00F7 ${vol}%\n= ${excess}% \u00F7 ${vol}%\n= ${r.sharpe.toFixed(2)}\n\nAnn. Return: ${ret}%\nAnn. Volatility: ${vol}%\nRisk-Free Rate (Rf): ${rf}%\nData Points: ${pts} days`;
+    return `Sharpe = Ann. Excess Return \u00F7 Ann. Volatility\n= ${excessRet}% \u00F7 ${vol}%\n= ${r.sharpe.toFixed(2)}\n\nAnn. Excess Return: ${excessRet}%\nAnn. Volatility: ${vol}%\nRisk-Free Rate (Rf): ${rf}%\nData Points: ${pts} days`;
   },
 
   // Sharpe rating
@@ -146,14 +145,14 @@ const Utils = {
       case '6M': return new Date(now.setMonth(now.getMonth() - 6)).toISOString().split('T')[0];
       case 'YTD': return this.startOfYear();
       case '1Y': return new Date(now.setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
-      case '3Y': return new Date(now.setFullYear(now.getFullYear() - 3)).toISOString().split('T')[0];
+      case '2Y': return new Date(now.setFullYear(now.getFullYear() - 2)).toISOString().split('T')[0];
       case '5Y': return new Date(now.setFullYear(now.getFullYear() - 5)).toISOString().split('T')[0];
       default: return new Date(now.setFullYear(now.getFullYear() - 5)).toISOString().split('T')[0];
     }
   },
 
   periodToRange(period) {
-    const map = { '1M': '1M', '3M': '3M', '6M': '6M', 'YTD': '1Y', '1Y': '1Y', '3Y': '3Y', '5Y': '5Y', 'All': '10Y' };
+    const map = { '1M': '1M', '3M': '3M', '6M': '6M', 'YTD': '1Y', '1Y': '1Y', '2Y': '2Y', '5Y': '5Y', 'All': '10Y' };
     return map[period] || '1Y';
   },
 

@@ -71,7 +71,7 @@ const PublicView = {
           <div class="chart-controls">
             <span class="label">Period:</span>
             <div class="btn-group" id="pub-period-btns">
-              ${['1M','3M','6M','YTD','1Y','3Y','5Y','All'].map(p =>
+              ${['1M','3M','6M','YTD','1Y','2Y','5Y','All'].map(p =>
                 `<button class="btn btn-sm ${p === this.selectedPeriod ? 'active' : ''}" onclick="PublicView.setPeriod('${p}')">${p}</button>`
               ).join('')}
               <button class="btn btn-sm ${this.selectedPeriod === 'Custom' ? 'active' : ''}" onclick="PublicView.setPeriod('Custom')">Custom</button>
@@ -570,8 +570,7 @@ const PublicView = {
       const mean = excessReturns.reduce((a, b) => a + b, 0) / excessReturns.length;
       const variance = excessReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / (excessReturns.length - 1);
       const std = Math.sqrt(variance);
-      result[i] = std > 0 ? (mean * Math.sqrt(252)) / (std * Math.sqrt(252)) * Math.sqrt(252) / Math.sqrt(252) : 0;
-      // Simplified: Sharpe = (mean excess return * 252) / (std * sqrt(252))
+      // Annualized Sharpe = (mean excess return * 252) / (std * sqrt(252))
       result[i] = std > 0 ? (mean * 252) / (std * Math.sqrt(252)) : 0;
     }
     return result;

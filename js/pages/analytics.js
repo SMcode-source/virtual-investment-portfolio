@@ -196,7 +196,7 @@ const Analytics = {
   async calculate() {
     this.calcStartDate = document.getElementById('calc-start')?.value;
     this.calcEndDate = document.getElementById('calc-end')?.value;
-    this.calcRiskFree = parseFloat(document.getElementById('calc-rf')?.value) || 5.0;
+    this.calcRiskFree = parseFloat(document.getElementById('calc-rf')?.value) || 4.0;
 
     if (!this.calcStartDate || !this.calcEndDate) {
       alert('Please select both start and end dates');
