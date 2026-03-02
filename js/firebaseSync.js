@@ -6,6 +6,8 @@ const FirebaseSync = {
   _syncing: false,
   _listeners: [],
   _syncStatus: 'offline', // offline | syncing | synced | error
+  _autoSyncInterval: null,
+  AUTO_SYNC_MS: 5 * 60 * 1000, // 5 minutes
 
   // Data keys that should be synced to Firebase
   SYNC_KEYS: [
@@ -40,8 +42,11 @@ const FirebaseSync = {
       // Set up real-time listeners so other tabs/devices stay in sync
       this._listenForChanges();
 
+      // Start auto-sync every 5 minutes
+      this._startAutoSync();
+
       this.setStatus('synced');
-      console.log('[Sync] Initial pull complete, live sync active');
+      console.log('[Sync] Initial pull complete, live sync active, auto-sync every 5min');
     } catch (e) {
       console.error('[Sync] Init failed:', e.message);
       this.setStatus('error');
@@ -203,7 +208,39 @@ const FirebaseSync = {
     });
   },
 
+  // --- Auto-sync every 5 minutes ---
+  _startAutoSync() {
+    this._stopAutoSync(); // clear any existing interval
+    this._autoSyncInterval = setInterval(async () => {
+      const user = FirebaseApp.auth?.currentUser;
+      if (user) {
+        console.log('[Sync] Auto-sync triggered (5min interval)');
+        try {
+          await this._pushAll();
+          this.setStatus('synced');
+        } catch (e) {
+          console.error('[Sync] Auto-sync push failed:', e.message);
+        }
+      }
+      // Always pull latest (even for public visitors)
+      try {
+        await this._pullAll();
+      } catch (e) {
+        console.error('[Sync] Auto-sync pull failed:', e.message);
+      }
+    }, this.AUTO_SYNC_MS);
+    console.log('[Sync] Auto-sync started (every 5 minutes)');
+  },
+
+  _stopAutoSync() {
+    if (this._autoSyncInterval) {
+      clearInterval(this._autoSyncInterval);
+      this._autoSyncInterval = null;
+    }
+  },
+
   signOut() {
+    this._stopAutoSync();
     if (FirebaseApp.auth) {
       FirebaseApp.auth.signOut();
     }
