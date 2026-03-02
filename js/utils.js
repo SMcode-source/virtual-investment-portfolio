@@ -80,10 +80,10 @@ const Utils = {
 
   // Sharpe rating
   sharpeRating(val) {
-    if (val >= 1.5) return { label: 'Excellent', color: '#22c55e', bg: '#22c55e20' };
-    if (val >= 0.5) return { label: 'Good', color: '#3b82f6', bg: '#3b82f620' };
-    if (val >= 0) return { label: 'Fair', color: '#f59e0b', bg: '#f59e0b20' };
-    return { label: 'Poor', color: '#ef4444', bg: '#ef444420' };
+    if (val >= 1.5) return { label: 'Excellent', color: '#15803d', bg: '#f0fdf4' };
+    if (val >= 0.5) return { label: 'Good', color: '#1d4ed8', bg: '#eff6ff' };
+    if (val >= 0) return { label: 'Fair', color: '#92400e', bg: '#fffbeb' };
+    return { label: 'Poor', color: '#b91c1c', bg: '#fef2f2' };
   },
 
   // Render a Sharpe rating pill with hover tooltip showing calculation
@@ -178,7 +178,7 @@ const Utils = {
   // Sentiment badge
   sentimentBadge(s) {
     const colors = { Bullish: '#22c55e', Neutral: '#f59e0b', Bearish: '#ef4444' };
-    const c = colors[s] || '#6b7280';
+    const c = colors[s] || '#8b90a0';
     return `<span class="badge" style="background:${c}20;color:${c};border:1px solid ${c}40">${s}</span>`;
   },
 

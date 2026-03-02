@@ -109,7 +109,7 @@ const PublicView = {
           <div class="chart-controls">
             <span class="label">Series:</span>
             ${Object.entries({portfolio:'Portfolio',sp500:'S&P 500',nasdaq:'NASDAQ 100',ftse:'FTSE 100',msci:'MSCI World'}).map(([k,v]) => {
-              const colors = {portfolio:'#e4e4e7',sp500:'#3b82f6',nasdaq:'#f59e0b',ftse:'#22c55e',msci:'#8b5cf6'};
+              const colors = {portfolio:'#4f46e5',sp500:'#2563eb',nasdaq:'#d97706',ftse:'#16a34a',msci:'#7c3aed'};
               const isOn = this.visibleSeries[k];
               return `<button class="btn btn-sm ${isOn ? 'active' : ''}" onclick="PublicView.toggleSeries('${k}')"
                 style="${isOn ? 'border-color:'+colors[k]+';box-shadow:inset 0 0 0 1px '+colors[k] : ''}">
@@ -403,7 +403,7 @@ const PublicView = {
     if (!labels.length) {
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#6b7280';
+      ctx.fillStyle = '#8b90a0';
       ctx.font = '14px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Waiting for Yahoo Finance data...', canvas.width / 2, canvas.height / 2);
@@ -422,8 +422,8 @@ const PublicView = {
       datasets.push({
         label: 'Portfolio',
         data: Utils.cumulativeReturns(portReturns.length ? portReturns : labels.map(() => 1)),
-        borderColor: '#e4e4e7',
-        backgroundColor: '#e4e4e720',
+        borderColor: '#4f46e5',
+        backgroundColor: '#4f46e510',
         borderWidth: 2.5,
         pointRadius: 0,
         tension: 0.3,
@@ -469,11 +469,11 @@ const PublicView = {
         },
         plugins: {
           tooltip: {
-            backgroundColor: '#1a1d28ee',
-            borderColor: '#4338ca',
+            backgroundColor: '#ffffffee',
+            borderColor: '#e2e4eb',
             borderWidth: 1,
-            titleColor: '#e4e4e7',
-            bodyColor: '#9ca3af',
+            titleColor: '#1e2028',
+            bodyColor: '#5f6578',
             padding: 14,
             titleFont: { size: 12, weight: '600' },
             bodyFont: { size: 11, family: 'JetBrains Mono, monospace' },
@@ -508,17 +508,17 @@ const PublicView = {
         },
         scales: {
           x: {
-            grid: { color: '#2a2d3a20' },
+            grid: { color: '#e2e4eb' },
             ticks: {
-              color: '#6b7280',
+              color: '#8b90a0',
               maxTicksLimit: 12,
               font: { size: 11 }
             }
           },
           y: {
-            grid: { color: '#2a2d3a40' },
+            grid: { color: '#e2e4eb80' },
             ticks: {
-              color: '#6b7280',
+              color: '#8b90a0',
               callback: v => v.toFixed(0) + '%',
               font: { size: 11 }
             }

@@ -323,7 +323,7 @@ const Dashboard = {
     if (!labels.length) {
       // No MarketData data — show empty state
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#6b7280';
+      ctx.fillStyle = '#8b90a0';
       ctx.font = '14px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Waiting for Yahoo Finance data...', canvas.width / 2, canvas.height / 2);
@@ -338,8 +338,8 @@ const Dashboard = {
       datasets.push({
         label: 'Portfolio',
         data: labels.map(() => 0), // Placeholder until we have daily portfolio values
-        borderColor: '#e4e4e7',
-        backgroundColor: '#e4e4e720',
+        borderColor: '#4f46e5',
+        backgroundColor: '#4f46e510',
         borderWidth: 2,
         pointRadius: 0,
         tension: 0.3
@@ -373,11 +373,11 @@ const Dashboard = {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           tooltip: {
-            backgroundColor: '#1a1d28',
-            borderColor: '#2a2d3a',
+            backgroundColor: '#ffffff',
+            borderColor: '#e2e4eb',
             borderWidth: 1,
-            titleColor: '#e4e4e7',
-            bodyColor: '#9ca3af',
+            titleColor: '#1e2028',
+            bodyColor: '#5f6578',
             padding: 12,
             callbacks: {
               label(ctx) {
@@ -391,13 +391,13 @@ const Dashboard = {
         },
         scales: {
           x: {
-            grid: { color: '#2a2d3a20' },
-            ticks: { color: '#6b7280', maxTicksLimit: 12, font: { size: 11 } }
+            grid: { color: '#e2e4eb' },
+            ticks: { color: '#8b90a0', maxTicksLimit: 12, font: { size: 11 } }
           },
           y: {
-            grid: { color: '#2a2d3a40' },
+            grid: { color: '#e2e4eb80' },
             ticks: {
-              color: '#6b7280',
+              color: '#8b90a0',
               callback: v => v.toFixed(0) + '%',
               font: { size: 11 }
             }

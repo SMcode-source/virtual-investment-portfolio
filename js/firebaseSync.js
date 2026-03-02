@@ -268,10 +268,10 @@ const FirebaseSync = {
   // --- Status badge for UI ---
   getStatusBadge() {
     const colors = {
-      offline: '#6b7280',
-      syncing: '#f59e0b',
-      synced: '#22c55e',
-      error: '#ef4444'
+      offline: '#8b90a0',
+      syncing: '#d97706',
+      synced: '#16a34a',
+      error: '#dc2626'
     };
     const labels = {
       offline: 'Local Only',

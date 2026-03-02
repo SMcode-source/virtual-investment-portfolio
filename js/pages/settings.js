@@ -135,7 +135,7 @@ const Settings = {
             <div class="card-title">Cloud Sync (Firebase)</div>
             <div class="card-subtitle">Sync your portfolio data across all devices</div>
           </div>
-          <div id="settings-sync-status">${typeof FirebaseSync !== 'undefined' ? FirebaseSync.getStatusBadge() : '<span style="color:#6b7280;font-size:0.75rem">Not configured</span>'}</div>
+          <div id="settings-sync-status">${typeof FirebaseSync !== 'undefined' ? FirebaseSync.getStatusBadge() : '<span style="color:#8b90a0;font-size:0.75rem">Not configured</span>'}</div>
         </div>
 
         ${FirebaseApp.ready ? `
@@ -311,7 +311,7 @@ const Settings = {
   _log(msg, type = 'info') {
     const el = document.getElementById('diag-log');
     if (!el) return;
-    const colors = { info: '#9ca3af', ok: '#22c55e', err: '#ef4444', warn: '#f59e0b', data: '#6366f1' };
+    const colors = { info: '#5f6578', ok: '#16a34a', err: '#dc2626', warn: '#d97706', data: '#4f46e5' };
     const prefix = { info: '  ', ok: '✓ ', err: '✗ ', warn: '⚠ ', data: '  ' };
     const ts = new Date().toLocaleTimeString();
     el.innerHTML += `<span style="color:${colors[type]}">${prefix[type]}[${ts}] ${msg}</span>\n`;
