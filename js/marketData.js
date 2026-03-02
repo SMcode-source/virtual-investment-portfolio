@@ -4,7 +4,7 @@ const MarketData = {
   status: 'disconnected', // disconnected | connecting | connected
   listeners: [],
   _lastCallTime: 0,
-  _minDelay: 2500, // 2.5s between Yahoo API calls
+  _minDelay: 750, // 0.75s between Yahoo API calls
   _disconnectTimer: null,
   _reconnectInterval: null,
   _DISCONNECT_FALLBACK_MS: 20 * 1000, // 20 seconds
