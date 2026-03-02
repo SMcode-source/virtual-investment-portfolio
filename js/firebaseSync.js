@@ -16,6 +16,29 @@ const FirebaseSync = {
     'priceCache', 'historyCache'
   ],
 
+  // Firebase disallows . # $ / [ ] in keys — encode them for storage, decode on read
+  _sanitizeKeys(obj) {
+    if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(v => this._sanitizeKeys(v));
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const safeKey = k.replace(/\./g, '%2E').replace(/#/g, '%23').replace(/\$/g, '%24').replace(/\//g, '%2F').replace(/\[/g, '%5B').replace(/\]/g, '%5D');
+      out[safeKey] = this._sanitizeKeys(v);
+    }
+    return out;
+  },
+
+  _restoreKeys(obj) {
+    if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(v => this._restoreKeys(v));
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const origKey = k.replace(/%2E/g, '.').replace(/%23/g, '#').replace(/%24/g, '$').replace(/%2F/g, '/').replace(/%5B/g, '[').replace(/%5D/g, ']');
+      out[origKey] = this._restoreKeys(v);
+    }
+    return out;
+  },
+
   onStatusChange(fn) { this._listeners.push(fn); },
   _notify() { this._listeners.forEach(fn => fn(this._syncStatus)); },
 
@@ -85,7 +108,7 @@ const FirebaseSync = {
     // Merge: cloud data wins for each key that exists in cloud
     for (const key of this.SYNC_KEYS) {
       if (cloudData[key] !== undefined) {
-        localStorage.setItem(`vip_${key}`, JSON.stringify(cloudData[key]));
+        localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(cloudData[key])));
       }
     }
   },
@@ -99,7 +122,7 @@ const FirebaseSync = {
     for (const key of this.SYNC_KEYS) {
       const raw = localStorage.getItem(`vip_${key}`);
       if (raw) {
-        try { data[key] = JSON.parse(raw); } catch { /* skip corrupt data */ }
+        try { data[key] = this._sanitizeKeys(JSON.parse(raw)); } catch { /* skip corrupt data */ }
       }
     }
 
@@ -117,7 +140,7 @@ const FirebaseSync = {
         if (this._syncing) return; // Ignore our own writes
         const val = snapshot.val();
         if (val !== null && val !== undefined) {
-          localStorage.setItem(`vip_${key}`, JSON.stringify(val));
+          localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(val)));
         }
       });
     }
@@ -140,7 +163,7 @@ const FirebaseSync = {
     this.setStatus('syncing');
 
     try {
-      const data = JSON.parse(raw);
+      const data = this._sanitizeKeys(JSON.parse(raw));
       await db.ref(`portfolio/${key}`).set(data);
       this.setStatus('synced');
     } catch (e) {
