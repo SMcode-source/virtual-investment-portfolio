@@ -24,7 +24,7 @@ const Storage = {
   // --- Portfolio Settings ---
   getSettings() {
     return this.get('settings', {
-      portfolioName: 'My Investment Portfolio',
+      portfolioName: 'Investment Portfolio',
       startingCash: 100000,
       baseCurrency: 'USD',
       riskFreeRate: 4.0,

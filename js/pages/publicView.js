@@ -22,8 +22,8 @@ const PublicView = {
     container.innerHTML = `
       <div class="page-header">
         <div>
-          <h1 class="page-title">Public View Preview</h1>
-          <p class="page-desc">This is what visitors see at /portfolio</p>
+          <h1 class="page-title">Public View</h1>
+          <p class="page-desc">This is the public-facing view of your portfolio</p>
         </div>
         <a href="#settings" class="btn btn-sm">⚙ Configure Visibility</a>
       </div>
@@ -33,7 +33,7 @@ const PublicView = {
         <!-- Profile Header -->
         <div class="public-header">
           <h1>${Utils.escHtml(settings.portfolioName)}</h1>
-          <div class="desc">Long-term, conviction-based investing · Updated live</div>
+          <div class="desc">Medium to Long Term Systematic and Conviction-Based Investing · Updated live</div>
           <div style="display:flex;gap:12px;margin-top:16px;position:relative;z-index:1">
             <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:white">Follow</button>
             <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:white">Share</button>
