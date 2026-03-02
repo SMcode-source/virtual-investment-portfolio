@@ -84,7 +84,10 @@ const MarketData = {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
-      if (!res) return null;
+      if (!res) {
+        // API returned no result — use last known price as fallback
+        return Storage.getLastKnownPrice(ticker);
+      }
 
       const meta = res.meta;
       const q = res.indicators?.quote?.[0] || {};
@@ -107,7 +110,8 @@ const MarketData = {
       Storage.setCachedPrice(ticker, result);
       return result;
     } catch {
-      return null;
+      // API call failed — fall back to last known price
+      return Storage.getLastKnownPrice(ticker);
     }
   },
 
@@ -135,7 +139,10 @@ const MarketData = {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
-      if (!res) return [];
+      if (!res) {
+        // API returned no result — use last known history as fallback
+        return Storage.getLastKnownHistory(ticker, period) || [];
+      }
 
       const timestamps = res.timestamp || [];
       const q = res.indicators?.quote?.[0] || {};
@@ -164,7 +171,8 @@ const MarketData = {
       }
       return history;
     } catch {
-      return [];
+      // API call failed — fall back to last known history
+      return Storage.getLastKnownHistory(ticker, period) || [];
     }
   },
 
@@ -196,7 +204,9 @@ const MarketData = {
           result[t] = { last: 0, close: 0, change: 0 };
         }
       } catch {
-        result[t] = { last: 0, close: 0, change: 0 };
+        // Try persistent fallback
+        const fallback = Storage.getLastKnownPrice(t);
+        result[t] = fallback ? { last: fallback.last, close: fallback.close, change: fallback.change } : { last: 0, close: 0, change: 0 };
       }
     }
     return result;

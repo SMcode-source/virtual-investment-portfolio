@@ -93,33 +93,57 @@ const Storage = {
     return snap;
   },
 
-  // --- Price Cache ---
+  // --- Price Cache (15min fresh TTL, persistent fallback) ---
   getCachedPrice(ticker) {
     const cache = this.get('priceCache', {});
     const entry = cache[ticker];
     if (!entry) return null;
-    if (Date.now() - entry.ts > 5 * 60 * 1000) return null; // 5min TTL
+    if (Date.now() - entry.ts > 15 * 60 * 1000) return null; // 15min TTL
     return entry.data;
   },
   setCachedPrice(ticker, data) {
     const cache = this.get('priceCache', {});
     cache[ticker] = { data, ts: Date.now() };
     this.set('priceCache', cache);
+    // Also save to persistent store (never expires, used as fallback)
+    const persistent = this.get('priceStore', {});
+    persistent[ticker] = { data, ts: Date.now() };
+    this.set('priceStore', persistent);
+  },
+  // Fallback: get last known price even if cache expired
+  getLastKnownPrice(ticker) {
+    // Try fresh cache first
+    const fresh = this.getCachedPrice(ticker);
+    if (fresh) return fresh;
+    // Fall back to persistent store
+    const store = this.get('priceStore', {});
+    return store[ticker]?.data || null;
   },
 
-  // --- Historical Price Cache (for charts) ---
+  // --- Historical Price Cache (1hr fresh TTL, persistent fallback) ---
   getCachedHistory(ticker, period) {
     const cache = this.get('historyCache', {});
     const key = `${ticker}_${period}`;
     const entry = cache[key];
     if (!entry) return null;
-    if (Date.now() - entry.ts > 30 * 60 * 1000) return null; // 30min TTL
+    if (Date.now() - entry.ts > 60 * 60 * 1000) return null; // 1hr TTL
     return entry.data;
   },
   setCachedHistory(ticker, period, data) {
     const cache = this.get('historyCache', {});
     cache[`${ticker}_${period}`] = { data, ts: Date.now() };
     this.set('historyCache', cache);
+    // Also save to persistent store
+    const persistent = this.get('historyStore', {});
+    persistent[`${ticker}_${period}`] = { data, ts: Date.now() };
+    this.set('historyStore', persistent);
+  },
+  // Fallback: get last known history even if cache expired
+  getLastKnownHistory(ticker, period) {
+    const fresh = this.getCachedHistory(ticker, period);
+    if (fresh) return fresh;
+    const store = this.get('historyStore', {});
+    return store[`${ticker}_${period}`]?.data || null;
   },
 
   // --- Computed: Current Holdings ---
