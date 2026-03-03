@@ -16,13 +16,15 @@ const FirebaseSync = {
   ],
 
   // Large cache data: synced only during periodic auto-sync and manual push/pull.
-  // Note: history data now uses per-ticker localStorage keys (vip_hc_*, vip_hs_*)
-  // which are too large for Firebase sync. Only price caches are synced.
   CACHE_KEYS: [
     'priceStore', 'priceCache'
   ],
 
-  // All keys (used for full push/pull operations)
+  // Benchmark tickers whose history is synced to Firebase per-ticker
+  // (stored under portfolio/history/{sanitizedTicker} to avoid localStorage quota issues)
+  HISTORY_TICKERS: ['SPY', 'QQQ', 'ISF.L', 'URTH'],
+
+  // All standard keys (used for full push/pull operations)
   get ALL_KEYS() { return [...this.SYNC_KEYS, ...this.CACHE_KEYS]; },
 
   // Firebase disallows . # $ / [ ] in keys — encode them for storage, decode on read
@@ -120,6 +122,9 @@ const FirebaseSync = {
         localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(cloudData[key])));
       }
     }
+
+    // Pull per-ticker history data from Firebase into localStorage
+    await this._pullHistory();
   },
 
   // --- Push all local data to Firebase ---
@@ -135,8 +140,72 @@ const FirebaseSync = {
       }
     }
 
-    await db.ref('portfolio').set(data);
+    // Use update (not set) to avoid wiping the history subtree
+    await db.ref('portfolio').update(data);
+
+    // Push per-ticker history data separately (stored under portfolio/history/{ticker})
+    await this._pushHistory();
+
     console.log('[Sync] Pushed all local data to cloud');
+  },
+
+  // Push per-ticker history from localStorage to Firebase
+  async _pushHistory() {
+    const db = FirebaseApp.db;
+    if (!db) return;
+
+    for (const ticker of this.HISTORY_TICKERS) {
+      const safeTicker = this._sanitizeTicker(ticker);
+      // Push the persistent fallback store (vip_hs_*) — it has the full 15yr data
+      const raw = localStorage.getItem(Storage._hsKey(ticker));
+      if (raw) {
+        try {
+          const entry = JSON.parse(raw);
+          await db.ref(`portfolio/history/${safeTicker}`).set(entry);
+        } catch (e) {
+          console.warn(`[Sync] Failed to push history for ${ticker}:`, e.message);
+        }
+      }
+    }
+    console.log('[Sync] Pushed per-ticker history to cloud');
+  },
+
+  // Pull per-ticker history from Firebase into localStorage
+  async _pullHistory() {
+    const db = FirebaseApp.db;
+    if (!db) return;
+
+    const snapshot = await db.ref('portfolio/history').once('value');
+    const historyData = snapshot.val();
+    if (!historyData) return;
+
+    for (const ticker of this.HISTORY_TICKERS) {
+      const safeTicker = this._sanitizeTicker(ticker);
+      const entry = historyData[safeTicker];
+      if (entry && entry.data) {
+        try {
+          const json = JSON.stringify(entry);
+          localStorage.setItem(Storage._hsKey(ticker), json);
+          // Also populate the fresh cache key so charts render immediately
+          localStorage.setItem(Storage._hcKey(ticker), json);
+          console.log(`[Sync] Restored ${entry.data.length} bars for ${ticker} from cloud`);
+        } catch (e) {
+          // Quota overflow — clear and retry once
+          console.warn(`[Sync] Quota exceeded restoring ${ticker} history — clearing caches`);
+          Storage._clearHistoryCaches();
+          try {
+            const json = JSON.stringify(entry);
+            localStorage.setItem(Storage._hsKey(ticker), json);
+            localStorage.setItem(Storage._hcKey(ticker), json);
+          } catch {}
+        }
+      }
+    }
+  },
+
+  // Sanitize ticker for use as Firebase key (e.g. ISF.L → ISF%2EL)
+  _sanitizeTicker(ticker) {
+    return ticker.replace(/\./g, '%2E').replace(/#/g, '%23').replace(/\$/g, '%24').replace(/\//g, '%2F').replace(/\[/g, '%5B').replace(/\]/g, '%5D');
   },
 
   // --- Listen for real-time changes from Firebase ---
@@ -144,12 +213,29 @@ const FirebaseSync = {
     const db = FirebaseApp.db;
     if (!db) return;
 
+    // Listen for standard key changes
     for (const key of this.ALL_KEYS) {
       db.ref(`portfolio/${key}`).on('value', (snapshot) => {
         if (this._syncing) return; // Ignore our own writes
         const val = snapshot.val();
         if (val !== null && val !== undefined) {
           localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(val)));
+        }
+      });
+    }
+
+    // Listen for per-ticker history changes
+    for (const ticker of this.HISTORY_TICKERS) {
+      const safeTicker = this._sanitizeTicker(ticker);
+      db.ref(`portfolio/history/${safeTicker}`).on('value', (snapshot) => {
+        if (this._syncing) return;
+        const entry = snapshot.val();
+        if (entry && entry.data) {
+          try {
+            const json = JSON.stringify(entry);
+            localStorage.setItem(Storage._hsKey(ticker), json);
+            localStorage.setItem(Storage._hcKey(ticker), json);
+          } catch {}
         }
       });
     }
