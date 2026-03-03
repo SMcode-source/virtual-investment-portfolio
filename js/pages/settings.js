@@ -545,8 +545,8 @@ const Settings = {
     this._log('STEP 6: Cache Verification');
     const cachedQuote = Storage.getCachedPrice('SPY');
     this._log(`  Price cache (SPY): ${cachedQuote ? 'HIT — $' + cachedQuote.last?.toFixed(2) : 'MISS'}`, cachedQuote ? 'ok' : 'warn');
-    const cachedHist = Storage.getCachedHistory('SPY', '1M');
-    this._log(`  History cache (SPY 1M): ${cachedHist ? 'HIT — ' + cachedHist.length + ' bars' : 'MISS'}`, cachedHist ? 'ok' : 'warn');
+    const cachedHist = Storage.getCachedHistory('SPY');
+    this._log(`  History cache (SPY full): ${cachedHist ? 'HIT — ' + cachedHist.length + ' bars' : 'MISS'}`, cachedHist ? 'ok' : 'warn');
     this._log('');
 
     this._log('═══════════════════════════════════════════');

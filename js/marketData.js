@@ -178,33 +178,22 @@ const MarketData = {
     }
   },
 
-  // --- Historical Data ---
-  async getHistory(ticker, period = '1Y', bar = '1d') {
-    const cached = Storage.getCachedHistory(ticker, period);
+  // --- Historical Data (fetch full 25yr once, slice by period) ---
+
+  // Fetch full history for a ticker (cached for 1hr)
+  async _fetchFullHistory(ticker) {
+    const cached = Storage.getCachedHistory(ticker);
     if (cached) return cached;
 
     try {
-      // Map period to Yahoo Finance range
-      const rangeMap = {
-        '1M': '1mo', '3M': '3mo', '6M': '6mo',
-        '1Y': '1y',  '2Y': '2y',  '5Y': '5y',
-        'All': '10y', 'YTD': 'ytd'
-      };
-      // Map bar size to Yahoo interval
-      const intervalMap = {
-        '1d': '1d', '1w': '1wk', '1m': '1mo',
-        '1h': '1h', '5m': '5m',  '15m': '15m'
-      };
-
-      const range = rangeMap[period] || '1y';
-      const interval = intervalMap[bar] || '1d';
-
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}`;
+      // Fetch 25 years of daily data using period1/period2 timestamps
+      const now = Math.floor(Date.now() / 1000);
+      const start = now - Math.floor(25 * 365.25 * 86400);
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${start}&period2=${now}&interval=1d`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
       if (!res) {
-        // API returned no result — use last known history as fallback
-        return Storage.getLastKnownHistory(ticker, period) || [];
+        return Storage.getLastKnownHistory(ticker) || [];
       }
 
       const timestamps = res.timestamp || [];
@@ -230,13 +219,37 @@ const MarketData = {
       }
 
       if (history.length) {
-        Storage.setCachedHistory(ticker, period, history);
+        Storage.setCachedHistory(ticker, history);
       }
       return history;
     } catch {
-      // API call failed — fall back to last known history
-      return Storage.getLastKnownHistory(ticker, period) || [];
+      return Storage.getLastKnownHistory(ticker) || [];
     }
+  },
+
+  // Slice full history by a UI period (1M, 3M, 6M, YTD, 1Y, 2Y, 5Y, All)
+  _sliceByPeriod(fullHistory, period) {
+    if (!fullHistory.length || period === 'All') return fullHistory;
+    const cutoff = Utils.periodToStartDate(period);
+    return fullHistory.filter(d => d.date >= cutoff);
+  },
+
+  // Slice full history by explicit start/end date strings
+  _sliceByDateRange(fullHistory, startDate, endDate) {
+    if (!fullHistory.length) return fullHistory;
+    return fullHistory.filter(d => d.date >= startDate && d.date <= (endDate || '9999'));
+  },
+
+  // Public API: get history for a ticker and period (fetches full 25yr, slices internally)
+  async getHistory(ticker, period = '1Y') {
+    const full = await this._fetchFullHistory(ticker);
+    return this._sliceByPeriod(full, period);
+  },
+
+  // Public API: get history for a ticker between two dates
+  async getHistoryByDate(ticker, startDate, endDate) {
+    const full = await this._fetchFullHistory(ticker);
+    return this._sliceByDateRange(full, startDate, endDate);
   },
 
   // --- Benchmark ETFs ---
@@ -251,6 +264,12 @@ const MarketData = {
     const bm = this.benchmarkETFs[benchmarkName];
     if (!bm) return [];
     return this.getHistory(bm.ticker, period);
+  },
+
+  async getBenchmarkHistoryByDate(benchmarkName, startDate, endDate) {
+    const bm = this.benchmarkETFs[benchmarkName];
+    if (!bm) return [];
+    return this.getHistoryByDate(bm.ticker, startDate, endDate);
   },
 
   // --- Batch Quotes ---

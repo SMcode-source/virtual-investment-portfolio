@@ -212,12 +212,11 @@ const Analytics = {
 
     for (const bm of benchmarks) {
       try {
-        const history = await MarketData.getBenchmarkHistory(bm, '5Y');
-        const filtered = history.filter(d => d.date >= this.calcStartDate && d.date <= this.calcEndDate);
-        const prices = filtered.map(d => d.close);
+        const history = await MarketData.getBenchmarkHistoryByDate(bm, this.calcStartDate, this.calcEndDate);
+        const prices = history.map(d => d.close);
         const returns = Utils.dailyReturns(prices);
         const sharpe = Utils.calcSharpeRatio(returns, this.calcRiskFree / 100);
-        results.push({ name: bm, ...sharpe, dataPoints: filtered.length });
+        results.push({ name: bm, ...sharpe, dataPoints: history.length });
       } catch {
         results.push({ name: bm, sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: this.calcRiskFree / 100, dataPoints: 0 });
       }

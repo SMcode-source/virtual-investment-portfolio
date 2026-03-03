@@ -361,8 +361,6 @@ const PublicView = {
     const canvas = document.getElementById('pub-perf-chart');
     if (!canvas) return;
 
-    const period = this.selectedPeriod === 'Custom' ? '5Y' : Utils.periodToRange(this.selectedPeriod);
-
     const seriesConfig = {
       sp500:  { name: 'S&P 500',    bmKey: 'S&P 500',    color: '#3b82f6' },
       nasdaq: { name: 'NASDAQ 100', bmKey: 'NASDAQ 100', color: '#f59e0b' },
@@ -371,20 +369,19 @@ const PublicView = {
     };
 
     const benchmarkData = {};
+    const isCustom = this.selectedPeriod === 'Custom' && this.customDateStart;
 
     // Fetch all visible benchmark series in parallel
     const fetches = Object.entries(seriesConfig).map(async ([key, cfg]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        const history = await MarketData.getBenchmarkHistory(cfg.bmKey, period);
-        let filtered = history;
-        if (this.selectedPeriod === 'Custom' && this.customDateStart) {
-          filtered = history.filter(d => d.date >= this.customDateStart && d.date <= (this.customDateEnd || '9999'));
-        }
+        const history = isCustom
+          ? await MarketData.getBenchmarkHistoryByDate(cfg.bmKey, this.customDateStart, this.customDateEnd || new Date().toISOString().split('T')[0])
+          : await MarketData.getBenchmarkHistory(cfg.bmKey, this.selectedPeriod);
         benchmarkData[key] = {
           ...cfg,
-          dates: filtered.map(d => d.date),
-          prices: filtered.map(d => d.close)
+          dates: history.map(d => d.date),
+          prices: history.map(d => d.close)
         };
       } catch {}
     });

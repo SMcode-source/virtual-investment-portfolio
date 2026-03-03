@@ -126,29 +126,29 @@ const Storage = {
   },
 
   // --- Historical Price Cache (1hr fresh TTL, persistent fallback) ---
-  getCachedHistory(ticker, period) {
+  // Full 25-year dataset cached per ticker (no period in key)
+  getCachedHistory(ticker) {
     const cache = this.get('historyCache', {});
-    const key = `${ticker}_${period}`;
-    const entry = cache[key];
+    const entry = cache[ticker];
     if (!entry) return null;
     if (Date.now() - entry.ts > 60 * 60 * 1000) return null; // 1hr TTL
     return entry.data;
   },
-  setCachedHistory(ticker, period, data) {
+  setCachedHistory(ticker, data) {
     const cache = this.get('historyCache', {});
-    cache[`${ticker}_${period}`] = { data, ts: Date.now() };
+    cache[ticker] = { data, ts: Date.now() };
     this.set('historyCache', cache);
     // Also save to persistent store
     const persistent = this.get('historyStore', {});
-    persistent[`${ticker}_${period}`] = { data, ts: Date.now() };
+    persistent[ticker] = { data, ts: Date.now() };
     this.set('historyStore', persistent);
   },
   // Fallback: get last known history even if cache expired
-  getLastKnownHistory(ticker, period) {
-    const fresh = this.getCachedHistory(ticker, period);
+  getLastKnownHistory(ticker) {
+    const fresh = this.getCachedHistory(ticker);
     if (fresh) return fresh;
     const store = this.get('historyStore', {});
-    return store[`${ticker}_${period}`]?.data || null;
+    return store[ticker]?.data || null;
   },
 
   // --- Computed: Current Holdings ---

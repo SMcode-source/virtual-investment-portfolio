@@ -294,7 +294,6 @@ const Dashboard = {
     const canvas = document.getElementById('performance-chart');
     if (!canvas) return;
 
-    const period = Utils.periodToRange(this.selectedPeriod);
     const benchmarks = {
       sp500: { name: 'S&P 500', color: '#3b82f6', data: [] },
       nasdaq: { name: 'NASDAQ 100', color: '#f59e0b', data: [] },
@@ -302,12 +301,12 @@ const Dashboard = {
       msci: { name: 'MSCI World', color: '#8b5cf6', data: [] }
     };
 
-    // Fetch benchmark data
+    // Fetch benchmark data (full 25yr cached internally, sliced by period)
     const bmNames = { sp500: 'S&P 500', nasdaq: 'NASDAQ 100', ftse: 'FTSE 100', msci: 'MSCI World' };
     const fetches = Object.entries(bmNames).map(async ([key, name]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        const history = await MarketData.getBenchmarkHistory(name, period);
+        const history = await MarketData.getBenchmarkHistory(name, this.selectedPeriod);
         benchmarks[key].data = history.map(d => d.close);
         benchmarks[key].dates = history.map(d => d.date);
       } catch {}
