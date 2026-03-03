@@ -34,6 +34,8 @@ const App = {
 
       FirebaseSync.init().then(() => {
         this._completeLoadingStep('sync', true);
+        // If data was pulled from cloud, re-render to show it
+        this.renderPage(this.currentPage);
       }).catch(() => {
         this._completeLoadingStep('sync', false);
       });
@@ -56,7 +58,12 @@ const App = {
       this.updateMarketStatus();
       this._updateLoadingBar();
       if (MarketData.status === 'connected') {
+        const wasAlreadyDone = this._loadingSteps.market;
         this._completeLoadingStep('market', true);
+        // If overlay already dismissed but market just connected, re-render
+        if (!wasAlreadyDone && Object.values(this._loadingSteps).filter(Boolean).length < 3) {
+          this.renderPage(this.currentPage);
+        }
       }
     });
     MarketData.checkConnection().then(() => {
@@ -156,9 +163,13 @@ const App = {
     const fill = document.getElementById('loading-bar-fill');
     if (fill) fill.style.width = `${(done / 3) * 100}%`;
 
-    // All done? Dismiss overlay
+    // All done? Dismiss overlay and re-render current page with fresh data
     if (done === 3) {
-      setTimeout(() => this._dismissOverlay(), 400);
+      setTimeout(() => {
+        this._dismissOverlay();
+        // Re-render the current page now that sync + market data are ready
+        this.renderPage(this.currentPage);
+      }, 400);
     }
   },
 
