@@ -15,11 +15,11 @@ const FirebaseSync = {
     'snapshots', 'settings'
   ],
 
-  // Large cache data: synced only during periodic auto-sync and manual push/pull
-  // (not on every individual write to avoid overwriting MBs of data constantly)
+  // Large cache data: synced only during periodic auto-sync and manual push/pull.
+  // Note: history data now uses per-ticker localStorage keys (vip_hc_*, vip_hs_*)
+  // which are too large for Firebase sync. Only price caches are synced.
   CACHE_KEYS: [
-    'priceStore', 'historyStore',
-    'priceCache', 'historyCache'
+    'priceStore', 'priceCache'
   ],
 
   // All keys (used for full push/pull operations)

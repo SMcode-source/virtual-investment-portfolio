@@ -126,29 +126,61 @@ const Storage = {
   },
 
   // --- Historical Price Cache (1hr fresh TTL, persistent fallback) ---
-  // Full 15-year dataset cached per ticker (no period in key)
+  // Each ticker stored in its own localStorage key to avoid quota overflow.
+  // Keys: vip_hc_{ticker} (fresh cache), vip_hs_{ticker} (persistent fallback)
+  _hcKey(ticker) { return `vip_hc_${ticker}`; },
+  _hsKey(ticker) { return `vip_hs_${ticker}`; },
+
   getCachedHistory(ticker) {
-    const cache = this.get('historyCache', {});
-    const entry = cache[ticker];
-    if (!entry) return null;
-    if (Date.now() - entry.ts > 60 * 60 * 1000) return null; // 1hr TTL
-    return entry.data;
+    try {
+      const raw = localStorage.getItem(this._hcKey(ticker));
+      if (!raw) return null;
+      const entry = JSON.parse(raw);
+      if (Date.now() - entry.ts > 60 * 60 * 1000) return null; // 1hr TTL
+      return entry.data;
+    } catch { return null; }
   },
   setCachedHistory(ticker, data) {
-    const cache = this.get('historyCache', {});
-    cache[ticker] = { data, ts: Date.now() };
-    this.set('historyCache', cache);
-    // Also save to persistent store
-    const persistent = this.get('historyStore', {});
-    persistent[ticker] = { data, ts: Date.now() };
-    this.set('historyStore', persistent);
+    const entry = JSON.stringify({ data, ts: Date.now() });
+    try {
+      localStorage.setItem(this._hcKey(ticker), entry);
+    } catch (e) {
+      // Quota exceeded — clear old history caches and retry once
+      console.warn('[Storage] Quota exceeded caching', ticker, '— clearing old caches');
+      this._clearHistoryCaches();
+      try { localStorage.setItem(this._hcKey(ticker), entry); } catch {}
+    }
+    // Also save to persistent store (same data, separate key)
+    try {
+      localStorage.setItem(this._hsKey(ticker), entry);
+    } catch (e) {
+      // Persistent store is best-effort — don't block on quota
+      console.warn('[Storage] Quota exceeded on persistent store for', ticker);
+    }
   },
   // Fallback: get last known history even if cache expired
   getLastKnownHistory(ticker) {
     const fresh = this.getCachedHistory(ticker);
     if (fresh) return fresh;
-    const store = this.get('historyStore', {});
-    return store[ticker]?.data || null;
+    try {
+      const raw = localStorage.getItem(this._hsKey(ticker));
+      if (!raw) return null;
+      return JSON.parse(raw).data;
+    } catch { return null; }
+  },
+  // Clear all history caches to free space (called on quota overflow)
+  _clearHistoryCaches() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('vip_hc_') || key.startsWith('vip_hs_'))) {
+        keys.push(key);
+      }
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+    // Also clear legacy monolithic keys if they exist
+    localStorage.removeItem('vip_historyCache');
+    localStorage.removeItem('vip_historyStore');
   },
 
   // --- Computed: Current Holdings ---

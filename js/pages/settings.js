@@ -236,9 +236,11 @@ const Settings = {
     const answer = prompt('Type YES to confirm data reset:');
     if (answer !== 'YES') return;
 
-    ['settings','trades','journal','thinkPieces','watchlist','snapshots','priceCache','historyCache','priceStore','historyStore'].forEach(k => {
+    ['settings','trades','journal','thinkPieces','watchlist','snapshots','priceCache','priceStore'].forEach(k => {
       Storage.remove(k);
     });
+    // Clear per-ticker history caches (vip_hc_*, vip_hs_*) and legacy monolithic keys
+    Storage._clearHistoryCaches();
     alert('All data has been reset.');
     window.location.reload();
   },
@@ -384,7 +386,8 @@ const Settings = {
     this._log('Testing historical data: SPY (1M daily bars)...');
 
     try {
-      Storage.remove('historyCache');
+      // Clear SPY history cache for fresh test
+      try { localStorage.removeItem(Storage._hcKey('SPY')); } catch {}
       const start = performance.now();
       const history = await MarketData.getHistory('SPY', '1M');
       const elapsed = (performance.now() - start).toFixed(0);
@@ -487,7 +490,7 @@ const Settings = {
     // Step 3: Historical Data
     this._log('STEP 3: Historical Data (SPY 1M daily)');
     try {
-      Storage.remove('historyCache');
+      try { localStorage.removeItem(Storage._hcKey('SPY')); } catch {}
       const hist = await MarketData.getHistory('SPY', '1M');
       if (hist.length > 0) {
         this._log(`  Received ${hist.length} bars: ${hist[0].date} → ${hist[hist.length - 1].date}`, 'ok');
@@ -527,7 +530,9 @@ const Settings = {
     ];
     for (const bm of benchmarks) {
       try {
-        Storage.remove('historyCache');
+        // Clear ticker-specific cache for fresh benchmark test
+        const bmTicker = MarketData.benchmarkETFs[bm.key]?.ticker;
+        if (bmTicker) try { localStorage.removeItem(Storage._hcKey(bmTicker)); } catch {}
         const hist = await MarketData.getBenchmarkHistory(bm.key, '1M');
         if (hist.length > 0) {
           const ret = ((hist[hist.length-1].close - hist[0].close) / hist[0].close * 100);

@@ -351,7 +351,8 @@ const Dashboard = {
       if (this.visibleSeries[key] && bm.data && bm.data.length) {
         // Filter out leading nulls (series that started later)
         const firstIdx = bm.data.findIndex(v => v !== null);
-        const prices = firstIdx >= 0 ? bm.data.slice(firstIdx) : [];
+        if (firstIdx < 0) return; // All null — skip this series
+        const prices = bm.data.slice(firstIdx);
         const cumReturns = Utils.cumulativeReturns(prices);
         // Pad with nulls at the start so Chart.js aligns to the shared x-axis
         const padded = new Array(firstIdx).fill(null).concat(cumReturns);
