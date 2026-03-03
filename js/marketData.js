@@ -5,6 +5,7 @@ const MarketData = {
   listeners: [],
   _lastCallTime: 0,
   _minDelay: 750, // 0.75s between Yahoo API calls
+  _queue: Promise.resolve(), // serialization queue for rate limiting
   _disconnectTimer: null,
   _reconnectInterval: null,
   _DISCONNECT_FALLBACK_MS: 20 * 1000, // 20 seconds
@@ -79,14 +80,19 @@ const MarketData = {
     }
   },
 
-  // --- Rate limiter: wait between calls ---
+  // --- Rate limiter: serialized queue to prevent concurrent CORS proxy hammering ---
   async _rateWait() {
-    const now = Date.now();
-    const elapsed = now - this._lastCallTime;
-    if (elapsed < this._minDelay) {
-      await new Promise(r => setTimeout(r, this._minDelay - elapsed));
-    }
-    this._lastCallTime = Date.now();
+    // Chain onto the queue so only one call runs at a time
+    const ticket = this._queue.then(async () => {
+      const now = Date.now();
+      const elapsed = now - this._lastCallTime;
+      if (elapsed < this._minDelay) {
+        await new Promise(r => setTimeout(r, this._minDelay - elapsed));
+      }
+      this._lastCallTime = Date.now();
+    });
+    this._queue = ticket.catch(() => {}); // keep queue alive even on errors
+    return ticket;
   },
 
   // --- Fetch via CORS proxy ---

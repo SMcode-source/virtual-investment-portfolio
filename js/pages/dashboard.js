@@ -416,15 +416,29 @@ const Dashboard = {
     this.loadSharpeTable(benchmarks);
   },
 
-  loadSharpeTable(benchmarks) {
+  async loadSharpeTable(benchmarks) {
     const tbody = document.getElementById('sharpe-body');
     if (!tbody) return;
 
     const riskFree = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
-    const series = [
-      { name: 'Portfolio', data: [] }, // placeholder
-      ...Object.values(benchmarks).filter(b => b.data.length)
-    ];
+    const bmNames = { sp500: 'S&P 500', nasdaq: 'NASDAQ 100', ftse: 'FTSE 100', msci: 'MSCI World' };
+
+    // Build series list — if a benchmark is missing from chart data, fetch independently
+    const series = [{ name: 'Portfolio', data: [] }];
+    for (const [key, name] of Object.entries(bmNames)) {
+      const bm = benchmarks[key];
+      if (bm && bm.data && bm.data.length) {
+        series.push({ name: bm.name, data: bm.data });
+      } else {
+        // Fetch independently so the table always shows all benchmarks
+        try {
+          const history = await MarketData.getBenchmarkHistory(name, '1Y');
+          series.push({ name, data: history.map(d => d.close) });
+        } catch {
+          series.push({ name, data: [] });
+        }
+      }
+    }
 
     const rows = series.map(s => {
       // Filter out null values (from date alignment forward-fill padding)
