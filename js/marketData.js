@@ -1,6 +1,12 @@
 // marketData.js — Yahoo Finance direct integration (browser-side via CORS proxy)
 const MarketData = {
-  corsProxy: 'https://corsproxy.io/?url=',
+  // Multiple CORS proxies for resilience — if one fails, try the next
+  corsProxies: [
+    'https://corsproxy.io/?url=',
+    'https://api.allorigins.win/raw?url='
+  ],
+  corsProxy: 'https://corsproxy.io/?url=', // current active proxy
+  _proxyIndex: 0,
   status: 'disconnected', // disconnected | connecting | connected
   listeners: [],
   _lastCallTime: 0,
@@ -10,6 +16,7 @@ const MarketData = {
   _reconnectInterval: null,
   _DISCONNECT_FALLBACK_MS: 20 * 1000, // 20 seconds
   _RECONNECT_CHECK_MS: 30 * 1000, // check every 30s for reconnection
+  _MAX_RETRIES: 2, // retry failed requests up to 2 times
 
   onStatusChange(fn) { this.listeners.push(fn); },
   _notify() { this.listeners.forEach(fn => fn(this.status)); },
@@ -64,7 +71,6 @@ const MarketData = {
       try {
         const url = 'https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=1d&interval=1d';
         await this._yf(url);
-        // Reconnected!
         this.setStatus('connected');
         console.log('[MarketData] Yahoo Finance reconnected — resuming live data');
       } catch {
@@ -78,6 +84,13 @@ const MarketData = {
       clearInterval(this._reconnectInterval);
       this._reconnectInterval = null;
     }
+  },
+
+  // Switch to next CORS proxy
+  _rotateProxy() {
+    this._proxyIndex = (this._proxyIndex + 1) % this.corsProxies.length;
+    this.corsProxy = this.corsProxies[this._proxyIndex];
+    console.log('[MarketData] Switched to CORS proxy:', this.corsProxy);
   },
 
   // --- Rate limiter: serialized queue to prevent concurrent CORS proxy hammering ---
@@ -95,13 +108,48 @@ const MarketData = {
     return ticket;
   },
 
-  // --- Fetch via CORS proxy ---
-  async _yf(url) {
+  // --- Fetch via CORS proxy (single attempt) ---
+  async _yfOnce(url) {
     await this._rateWait();
     const proxyUrl = this.corsProxy + encodeURIComponent(url);
-    const resp = await fetch(proxyUrl);
-    if (!resp.ok) throw new Error(`Yahoo Finance HTTP ${resp.status}`);
-    return resp.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    try {
+      const resp = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      // Guard against CORS proxy returning non-JSON error pages
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error('Non-JSON response from proxy');
+      }
+    } catch (e) {
+      clearTimeout(timeoutId);
+      throw e;
+    }
+  },
+
+  // --- Fetch via CORS proxy with retries and proxy rotation ---
+  async _yf(url) {
+    let lastError;
+    for (let attempt = 0; attempt <= this._MAX_RETRIES; attempt++) {
+      try {
+        return await this._yfOnce(url);
+      } catch (e) {
+        lastError = e;
+        const isLast = attempt === this._MAX_RETRIES;
+        console.warn(`[MarketData] Fetch attempt ${attempt + 1}/${this._MAX_RETRIES + 1} failed: ${e.message}${isLast ? '' : ' — retrying...'}`);
+        if (!isLast) {
+          // On retry, try rotating to a different CORS proxy
+          if (attempt > 0) this._rotateProxy();
+          // Exponential backoff: 1s, 2s
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        }
+      }
+    }
+    throw new Error(`Yahoo Finance failed after ${this._MAX_RETRIES + 1} attempts: ${lastError?.message}`);
   },
 
   // --- Connection check (just test that Yahoo Finance is reachable) ---
@@ -139,7 +187,8 @@ const MarketData = {
       }));
       Storage.setCachedPrice(`search_${query}`, results);
       return results;
-    } catch {
+    } catch (e) {
+      console.warn('[MarketData] Symbol search failed for', query, ':', e.message);
       return [];
     }
   },
@@ -154,7 +203,7 @@ const MarketData = {
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
       if (!res) {
-        // API returned no result — use last known price as fallback
+        console.warn('[MarketData] No quote result for', ticker);
         return Storage.getLastKnownPrice(ticker);
       }
 
@@ -178,8 +227,8 @@ const MarketData = {
 
       Storage.setCachedPrice(ticker, result);
       return result;
-    } catch {
-      // API call failed — fall back to last known price
+    } catch (e) {
+      console.warn('[MarketData] Quote failed for', ticker, ':', e.message);
       return Storage.getLastKnownPrice(ticker);
     }
   },
@@ -199,6 +248,7 @@ const MarketData = {
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
       if (!res) {
+        console.warn('[MarketData] No history result for', ticker, '— using fallback');
         return Storage.getLastKnownHistory(ticker) || [];
       }
 
@@ -226,9 +276,13 @@ const MarketData = {
 
       if (history.length) {
         Storage.setCachedHistory(ticker, history);
+        console.log(`[MarketData] Cached ${history.length} bars for ${ticker} (${history[0].date} → ${history[history.length - 1].date})`);
+      } else {
+        console.warn('[MarketData] History fetch returned 0 valid bars for', ticker);
       }
       return history;
-    } catch {
+    } catch (e) {
+      console.error('[MarketData] History fetch failed for', ticker, ':', e.message);
       return Storage.getLastKnownHistory(ticker) || [];
     }
   },
@@ -323,8 +377,8 @@ const MarketData = {
         } else {
           result[t] = { last: 0, close: 0, change: 0 };
         }
-      } catch {
-        // Try persistent fallback
+      } catch (e) {
+        console.warn('[MarketData] Batch quote failed for', t, ':', e.message);
         const fallback = Storage.getLastKnownPrice(t);
         result[t] = fallback ? { last: fallback.last, close: fallback.close, change: fallback.change } : { last: 0, close: 0, change: 0 };
       }

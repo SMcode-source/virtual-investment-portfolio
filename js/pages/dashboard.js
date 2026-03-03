@@ -307,7 +307,9 @@ const Dashboard = {
       if (!this.visibleSeries[key]) return;
       try {
         rawSeries[key] = await MarketData.getBenchmarkHistory(bm.name, this.selectedPeriod);
-      } catch {}
+      } catch (e) {
+        console.warn(`[Dashboard] Failed to fetch ${bm.name} for chart:`, e.message);
+      }
     });
     await Promise.all(fetches);
 

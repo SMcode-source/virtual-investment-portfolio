@@ -378,7 +378,9 @@ const PublicView = {
         rawSeries[key] = isCustom
           ? await MarketData.getBenchmarkHistoryByDate(cfg.bmKey, this.customDateStart, this.customDateEnd || new Date().toISOString().split('T')[0])
           : await MarketData.getBenchmarkHistory(cfg.bmKey, this.selectedPeriod);
-      } catch {}
+      } catch (e) {
+        console.warn(`[PublicView] Failed to fetch ${cfg.name} for chart:`, e.message);
+      }
     });
     await Promise.all(fetches);
 
