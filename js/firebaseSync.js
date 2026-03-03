@@ -9,12 +9,21 @@ const FirebaseSync = {
   _autoSyncInterval: null,
   AUTO_SYNC_MS: 5 * 60 * 1000, // 5 minutes
 
-  // Data keys that should be synced to Firebase
+  // User data: synced immediately on every write
   SYNC_KEYS: [
     'trades', 'journal', 'thinkPieces', 'watchlist',
-    'snapshots', 'settings', 'priceStore', 'historyStore',
+    'snapshots', 'settings'
+  ],
+
+  // Large cache data: synced only during periodic auto-sync and manual push/pull
+  // (not on every individual write to avoid overwriting MBs of data constantly)
+  CACHE_KEYS: [
+    'priceStore', 'historyStore',
     'priceCache', 'historyCache'
   ],
+
+  // All keys (used for full push/pull operations)
+  get ALL_KEYS() { return [...this.SYNC_KEYS, ...this.CACHE_KEYS]; },
 
   // Firebase disallows . # $ / [ ] in keys — encode them for storage, decode on read
   _sanitizeKeys(obj) {
@@ -106,7 +115,7 @@ const FirebaseSync = {
     }
 
     // Merge: cloud data wins for each key that exists in cloud
-    for (const key of this.SYNC_KEYS) {
+    for (const key of this.ALL_KEYS) {
       if (cloudData[key] !== undefined) {
         localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(cloudData[key])));
       }
@@ -119,7 +128,7 @@ const FirebaseSync = {
     if (!db) return;
 
     const data = {};
-    for (const key of this.SYNC_KEYS) {
+    for (const key of this.ALL_KEYS) {
       const raw = localStorage.getItem(`vip_${key}`);
       if (raw) {
         try { data[key] = this._sanitizeKeys(JSON.parse(raw)); } catch { /* skip corrupt data */ }
@@ -135,7 +144,7 @@ const FirebaseSync = {
     const db = FirebaseApp.db;
     if (!db) return;
 
-    for (const key of this.SYNC_KEYS) {
+    for (const key of this.ALL_KEYS) {
       db.ref(`portfolio/${key}`).on('value', (snapshot) => {
         if (this._syncing) return; // Ignore our own writes
         const val = snapshot.val();
@@ -149,6 +158,10 @@ const FirebaseSync = {
   // --- Write a single key to Firebase (called after localStorage writes) ---
   async syncKey(key) {
     if (!FirebaseApp.ready) return;
+
+    // Skip large cache keys — they sync only during periodic auto-sync
+    if (this.CACHE_KEYS.includes(key)) return;
+
     const db = FirebaseApp.db;
     if (!db) return;
 
