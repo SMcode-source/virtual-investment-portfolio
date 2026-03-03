@@ -59,8 +59,11 @@
 
       <nav class="sidebar-nav">
         <div class="nav-section-label">Overview</div>
+        <div class="nav-item" data-page="publicView" onclick="App.navigate('publicView')">
+          <span class="nav-icon">🌐</span> Public View
+        </div>
         <div class="nav-item active" data-page="dashboard" onclick="App.navigate('dashboard')">
-          <span class="nav-icon">📈</span> Dashboard
+          <span class="nav-icon">📈</span> Portfolio Allocation Time Machine
         </div>
 
         <div class="nav-section-label">Trading</div>
@@ -93,9 +96,6 @@
         <div class="nav-section-label">Portfolio</div>
         <div class="nav-item" data-page="snapshots" onclick="App.navigate('snapshots')">
           <span class="nav-icon">📸</span> Snapshots <span class="nav-lock" style="display:none;opacity:0.4;font-size:0.7em;margin-left:auto">🔒</span>
-        </div>
-        <div class="nav-item" data-page="publicView" onclick="App.navigate('publicView')">
-          <span class="nav-icon">🌐</span> Public View
         </div>
 
         <div class="nav-section-label">Config</div>

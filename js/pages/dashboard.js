@@ -54,7 +54,7 @@ const Dashboard = {
     container.innerHTML = `
       <div class="page-header">
         <div>
-          <h1 class="page-title">Dashboard</h1>
+          <h1 class="page-title">Portfolio Allocation Time Machine</h1>
           <p class="page-desc">${settings.portfolioName}</p>
         </div>
         <div id="market-badge">${MarketData.getStatusBadge()}</div>
