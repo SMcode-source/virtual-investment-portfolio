@@ -5,11 +5,51 @@ const Dashboard = {
   selectedPeriod: '1Y',
   sharpeWindow: 365,
   visibleSeries: { portfolio: true, sp500: true, nasdaq: true, ftse: true, msci: true },
+  _searchTimeout: null,
+
+  // Ensure custom index visibility keys are initialized
+  _initCustomVisibility() {
+    const custom = Storage.getCustomIndexes();
+    custom.forEach((c, i) => {
+      const key = `custom_${i}`;
+      if (this.visibleSeries[key] === undefined) this.visibleSeries[key] = true;
+    });
+    // Clean stale custom keys
+    Object.keys(this.visibleSeries).forEach(k => {
+      if (k.startsWith('custom_')) {
+        const idx = parseInt(k.split('_')[1]);
+        if (idx >= custom.length) delete this.visibleSeries[k];
+      }
+    });
+  },
 
   async render(container) {
+    this._initCustomVisibility();
     const settings = Storage.getSettings();
+    const customIndexes = settings.customIndexes || [];
     const asOf = this.timeMachineDate;
     const { holdings, cash } = Storage.computeHoldings(asOf);
+
+    // Build series toggle buttons: defaults + custom
+    const defaultSeries = {portfolio:'Portfolio',sp500:'S&P 500',nasdaq:'NASDAQ 100',ftse:'FTSE 100',msci:'MSCI World'};
+    let seriesBtns = Object.entries(defaultSeries).map(([k,v]) =>
+      `<button class="btn btn-sm ${this.visibleSeries[k] ? 'active' : ''}" onclick="Dashboard.toggleSeries('${k}')">${v}</button>`
+    ).join('');
+
+    // Custom index toggle buttons with remove ×
+    seriesBtns += customIndexes.map((c, i) => {
+      const key = `custom_${i}`;
+      const isOn = this.visibleSeries[key] !== false;
+      return `<button class="btn btn-sm ${isOn ? 'active' : ''}" onclick="Dashboard.toggleSeries('${key}')" style="${isOn ? 'border-color:'+c.color+';box-shadow:inset 0 0 0 1px '+c.color : ''}">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c.color};margin-right:4px"></span>${Utils.escHtml(c.name || c.ticker)}
+        <span class="series-remove-btn" onclick="event.stopPropagation();Dashboard.removeCustomIndex('${Utils.escHtml(c.ticker)}')" title="Remove">&times;</span>
+      </button>`;
+    }).join('');
+
+    // Add Index button (if under limit)
+    if (customIndexes.length < 3) {
+      seriesBtns += `<button class="btn btn-sm" onclick="Dashboard.openIndexSearch()" style="border-style:dashed">+ Add Index</button>`;
+    }
 
     container.innerHTML = `
       <div class="page-header">
@@ -71,11 +111,14 @@ const Dashboard = {
             ).join('')}
           </div>
         </div>
-        <div class="chart-controls">
+        <div class="chart-controls" style="flex-wrap:wrap;gap:6px">
           <span class="label">Series:</span>
-          ${Object.entries({portfolio:'Portfolio',sp500:'S&P 500',nasdaq:'NASDAQ 100',ftse:'FTSE 100',msci:'MSCI World'}).map(([k,v]) =>
-            `<button class="btn btn-sm ${this.visibleSeries[k] ? 'active' : ''}" onclick="Dashboard.toggleSeries('${k}')">${v}</button>`
-          ).join('')}
+          ${seriesBtns}
+        </div>
+        <!-- Index search dropdown (hidden by default) -->
+        <div class="index-search-wrap" id="dash-index-search" style="display:none">
+          <input type="text" class="index-search-input" id="dash-index-input" placeholder="Search ticker or name (e.g. Nikkei, DAX, VTI)..." oninput="Dashboard.onIndexSearch(this.value)">
+          <div class="index-search-results" id="dash-index-results"></div>
         </div>
         <div class="chart-container">
           <canvas id="performance-chart" height="300"></canvas>
@@ -150,6 +193,59 @@ const Dashboard = {
     this.loadPerformanceChart();
   },
 
+  // --- Custom Index Search ---
+  openIndexSearch() {
+    const wrap = document.getElementById('dash-index-search');
+    if (!wrap) return;
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    if (wrap.style.display === 'block') {
+      const input = document.getElementById('dash-index-input');
+      if (input) { input.value = ''; input.focus(); }
+      const results = document.getElementById('dash-index-results');
+      if (results) results.innerHTML = '';
+    }
+  },
+
+  onIndexSearch(query) {
+    clearTimeout(this._searchTimeout);
+    const results = document.getElementById('dash-index-results');
+    if (!query || query.length < 1) { if (results) results.innerHTML = ''; return; }
+    if (results) results.innerHTML = '<div style="padding:10px;color:var(--text-dim)">Searching...</div>';
+    this._searchTimeout = setTimeout(async () => {
+      try {
+        const items = await MarketData.searchSymbol(query);
+        if (!items.length) {
+          results.innerHTML = '<div style="padding:10px;color:var(--text-dim)">No results found</div>';
+          return;
+        }
+        const existing = Storage.getCustomIndexes().map(c => c.ticker);
+        // Also exclude default benchmark tickers
+        const defaults = ['SPY', 'QQQ', 'ISF.L', 'URTH'];
+        results.innerHTML = items.filter(it => !existing.includes(it.ticker) && !defaults.includes(it.ticker)).slice(0, 8).map(it =>
+          `<div class="index-result-item" onclick="Dashboard.selectCustomIndex('${Utils.escHtml(it.ticker)}','${Utils.escHtml(it.name)}')">
+            <strong>${Utils.escHtml(it.ticker)}</strong>
+            <span style="color:var(--text-muted);margin-left:8px">${Utils.escHtml(it.name)}</span>
+            <span style="color:var(--text-dim);margin-left:auto;font-size:0.75rem">${Utils.escHtml(it.exchange || '')}</span>
+          </div>`
+        ).join('') || '<div style="padding:10px;color:var(--text-dim)">All results already added</div>';
+      } catch (e) {
+        results.innerHTML = '<div style="padding:10px;color:var(--text-dim)">Search failed — try again</div>';
+      }
+    }, 350);
+  },
+
+  selectCustomIndex(ticker, name) {
+    if (Storage.addCustomIndex(ticker, name)) {
+      this.render(document.getElementById('page-content'));
+    }
+  },
+
+  removeCustomIndex(ticker) {
+    Storage.removeCustomIndex(ticker);
+    this.render(document.getElementById('page-content'));
+  },
+
+  // --- Navigation & Controls ---
   goToDate() {
     const input = document.getElementById('tm-date');
     if (input && input.value) {
@@ -294,6 +390,9 @@ const Dashboard = {
     const canvas = document.getElementById('performance-chart');
     if (!canvas) return;
 
+    const customIndexes = Storage.getCustomIndexes();
+
+    // Default benchmarks
     const benchmarks = {
       sp500: { name: 'S&P 500', color: '#3b82f6', data: [] },
       nasdaq: { name: 'NASDAQ 100', color: '#f59e0b', data: [] },
@@ -301,12 +400,21 @@ const Dashboard = {
       msci: { name: 'MSCI World', color: '#8b5cf6', data: [] }
     };
 
+    // Append custom indexes to benchmarks config
+    customIndexes.forEach((c, i) => {
+      benchmarks[`custom_${i}`] = { name: c.name || c.ticker, ticker: c.ticker, color: c.color, data: [], isCustom: true };
+    });
+
     // Fetch benchmark data (full 15yr cached internally, sliced by period)
     const rawSeries = {};
     const fetches = Object.entries(benchmarks).map(async ([key, bm]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        rawSeries[key] = await MarketData.getBenchmarkHistory(bm.name, this.selectedPeriod);
+        if (bm.isCustom) {
+          rawSeries[key] = await MarketData.getIndexHistory(bm.ticker, this.selectedPeriod);
+        } else {
+          rawSeries[key] = await MarketData.getBenchmarkHistory(bm.name, this.selectedPeriod);
+        }
       } catch (e) {
         console.warn(`[Dashboard] Failed to fetch ${bm.name} for chart:`, e.message);
       }
@@ -346,7 +454,7 @@ const Dashboard = {
       });
     }
 
-    // Benchmark series — use aligned prices for cumulative returns
+    // Benchmark + custom series — use aligned prices for cumulative returns
     Object.entries(benchmarks).forEach(([key, bm]) => {
       if (this.visibleSeries[key] && bm.data && bm.data.length) {
         // Filter out leading nulls (series that started later)
@@ -431,7 +539,9 @@ const Dashboard = {
       } else {
         // Fetch independently so the table always shows all benchmarks
         try {
-          const history = await MarketData.getBenchmarkHistory(bm.name, '1Y');
+          const history = bm.isCustom
+            ? await MarketData.getIndexHistory(bm.ticker, '1Y')
+            : await MarketData.getBenchmarkHistory(bm.name, '1Y');
           series.push({ name: bm.name, data: history.map(d => d.close) });
         } catch {
           series.push({ name: bm.name, data: [] });

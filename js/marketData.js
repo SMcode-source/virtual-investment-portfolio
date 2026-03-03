@@ -358,6 +358,17 @@ const MarketData = {
     return this.getHistory(bm.ticker, period);
   },
 
+  // Generic index history — works for any Yahoo Finance ticker (custom indexes)
+  async getIndexHistory(ticker, period = '1Y') {
+    const full = await this._fetchFullHistory(ticker);
+    return this._sliceByPeriod(full, period);
+  },
+
+  async getIndexHistoryByDate(ticker, startDate, endDate) {
+    const full = await this._fetchFullHistory(ticker);
+    return this._sliceByDateRange(full, startDate, endDate);
+  },
+
   async getBenchmarkHistoryByDate(benchmarkName, startDate, endDate) {
     const bm = this.benchmarkETFs[benchmarkName];
     if (!bm) return [];

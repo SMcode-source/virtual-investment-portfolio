@@ -35,10 +35,34 @@ const Storage = {
         showExactValue: false,
         showThinkPieces: true,
         showSharpe: true
-      }
+      },
+      customIndexes: [] // [{ticker, name, color}] — max 3 user-chosen indexes
     });
   },
   saveSettings(s) { this.set('settings', s); },
+
+  // --- Custom Indexes (up to 3 user-chosen series for charts) ---
+  CUSTOM_INDEX_COLORS: ['#f97316', '#06b6d4', '#ec4899'],
+  getCustomIndexes() {
+    return this.getSettings().customIndexes || [];
+  },
+  addCustomIndex(ticker, name) {
+    const settings = this.getSettings();
+    const list = settings.customIndexes || [];
+    if (list.length >= 3) return false;
+    if (list.some(c => c.ticker === ticker)) return false;
+    list.push({ ticker, name, color: this.CUSTOM_INDEX_COLORS[list.length] });
+    settings.customIndexes = list;
+    this.saveSettings(settings);
+    return true;
+  },
+  removeCustomIndex(ticker) {
+    const settings = this.getSettings();
+    const list = settings.customIndexes || [];
+    settings.customIndexes = list.filter(c => c.ticker !== ticker)
+      .map((c, i) => ({ ...c, color: this.CUSTOM_INDEX_COLORS[i] })); // re-assign colors
+    this.saveSettings(settings);
+  },
 
   // --- Trades ---
   getTrades() { return this.get('trades', []); },

@@ -22,7 +22,12 @@ const FirebaseSync = {
 
   // Benchmark tickers whose history is synced to Firebase per-ticker
   // (stored under portfolio/history/{sanitizedTicker} to avoid localStorage quota issues)
-  HISTORY_TICKERS: ['SPY', 'QQQ', 'ISF.L', 'URTH'],
+  // Dynamically includes custom user-added indexes from settings
+  _DEFAULT_HISTORY_TICKERS: ['SPY', 'QQQ', 'ISF.L', 'URTH'],
+  get HISTORY_TICKERS() {
+    const custom = (Storage.getSettings().customIndexes || []).map(c => c.ticker);
+    return [...this._DEFAULT_HISTORY_TICKERS, ...custom];
+  },
 
   // All standard keys (used for full push/pull operations)
   get ALL_KEYS() { return [...this.SYNC_KEYS, ...this.CACHE_KEYS]; },

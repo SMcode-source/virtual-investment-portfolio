@@ -6,8 +6,25 @@ const PublicView = {
   perfChart: null,
   customDateStart: '',
   customDateEnd: '',
+  _searchTimeout: null,
+
+  // Ensure custom index visibility keys are initialized
+  _initCustomVisibility() {
+    const custom = Storage.getCustomIndexes();
+    custom.forEach((c, i) => {
+      const key = `custom_${i}`;
+      if (this.visibleSeries[key] === undefined) this.visibleSeries[key] = true;
+    });
+    Object.keys(this.visibleSeries).forEach(k => {
+      if (k.startsWith('custom_')) {
+        const idx = parseInt(k.split('_')[1]);
+        if (idx >= custom.length) delete this.visibleSeries[k];
+      }
+    });
+  },
 
   async render(container) {
+    this._initCustomVisibility();
     const settings = Storage.getSettings();
     const pub = settings.public || {};
     const { holdings, cash } = Storage.computeHoldings();
@@ -102,7 +119,7 @@ const PublicView = {
           </div>
 
           <!-- Series Toggles -->
-          <div class="chart-controls">
+          <div class="chart-controls" style="flex-wrap:wrap;gap:6px">
             <span class="label">Series:</span>
             ${Object.entries({portfolio:'Portfolio',sp500:'S&P 500',nasdaq:'NASDAQ 100',ftse:'FTSE 100',msci:'MSCI World'}).map(([k,v]) => {
               const colors = {portfolio:'#4f46e5',sp500:'#2563eb',nasdaq:'#d97706',ftse:'#16a34a',msci:'#7c3aed'};
@@ -112,6 +129,21 @@ const PublicView = {
                 <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${colors[k]};opacity:${isOn?1:0.35};margin-right:4px"></span>${v}
               </button>`;
             }).join('')}
+            ${(settings.customIndexes || []).map((c, i) => {
+              const key = `custom_${i}`;
+              const isOn = this.visibleSeries[key] !== false;
+              return `<button class="btn btn-sm ${isOn ? 'active' : ''}" onclick="PublicView.toggleSeries('${key}')"
+                style="${isOn ? 'border-color:'+c.color+';box-shadow:inset 0 0 0 1px '+c.color : ''}">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c.color};opacity:${isOn?1:0.35};margin-right:4px"></span>${Utils.escHtml(c.name || c.ticker)}
+                <span class="series-remove-btn" onclick="event.stopPropagation();PublicView.removeCustomIndex('${Utils.escHtml(c.ticker)}')" title="Remove">&times;</span>
+              </button>`;
+            }).join('')}
+            ${(settings.customIndexes || []).length < 3 ? `<button class="btn btn-sm" onclick="PublicView.openIndexSearch()" style="border-style:dashed">+ Add Index</button>` : ''}
+          </div>
+          <!-- Index search dropdown -->
+          <div class="index-search-wrap" id="pub-index-search" style="display:none">
+            <input type="text" class="index-search-input" id="pub-index-input" placeholder="Search ticker or name (e.g. Nikkei, DAX, VTI)..." oninput="PublicView.onIndexSearch(this.value)">
+            <div class="index-search-results" id="pub-index-results"></div>
           </div>
 
           <div class="chart-container" style="position:relative;min-height:320px">
@@ -368,16 +400,28 @@ const PublicView = {
       msci:   { name: 'MSCI World',  bmKey: 'MSCI World',  color: '#8b5cf6' }
     };
 
+    // Append custom indexes to seriesConfig
+    const customIndexes = Storage.getCustomIndexes();
+    customIndexes.forEach((c, i) => {
+      seriesConfig[`custom_${i}`] = { name: c.name || c.ticker, ticker: c.ticker, color: c.color, isCustom: true };
+    });
+
     const isCustom = this.selectedPeriod === 'Custom' && this.customDateStart;
     const rawSeries = {};
 
-    // Fetch all visible benchmark series in parallel
+    // Fetch all visible series in parallel (defaults + custom)
     const fetches = Object.entries(seriesConfig).map(async ([key, cfg]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        rawSeries[key] = isCustom
-          ? await MarketData.getBenchmarkHistoryByDate(cfg.bmKey, this.customDateStart, this.customDateEnd || new Date().toISOString().split('T')[0])
-          : await MarketData.getBenchmarkHistory(cfg.bmKey, this.selectedPeriod);
+        if (cfg.isCustom) {
+          rawSeries[key] = isCustom
+            ? await MarketData.getIndexHistoryByDate(cfg.ticker, this.customDateStart, this.customDateEnd || new Date().toISOString().split('T')[0])
+            : await MarketData.getIndexHistory(cfg.ticker, this.selectedPeriod);
+        } else {
+          rawSeries[key] = isCustom
+            ? await MarketData.getBenchmarkHistoryByDate(cfg.bmKey, this.customDateStart, this.customDateEnd || new Date().toISOString().split('T')[0])
+            : await MarketData.getBenchmarkHistory(cfg.bmKey, this.selectedPeriod);
+        }
       } catch (e) {
         console.warn(`[PublicView] Failed to fetch ${cfg.name} for chart:`, e.message);
       }
@@ -688,12 +732,13 @@ const PublicView = {
     const tbody = document.getElementById('pub-sharpe-body');
     if (!tbody) return;
 
-    const benchmarks = ['S&P 500', 'NASDAQ 100', 'FTSE 100', 'MSCI World'];
+    const defaultBenchmarks = ['S&P 500', 'NASDAQ 100', 'FTSE 100', 'MSCI World'];
+    const customIndexes = Storage.getCustomIndexes();
     const rf = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
     const zeroResult = { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: rf, dataPoints: 0 };
     const rows = [{ name: 'Portfolio', r6m: zeroResult, r1y: zeroResult }];
 
-    for (const bm of benchmarks) {
+    for (const bm of defaultBenchmarks) {
       try {
         const history = await MarketData.getBenchmarkHistory(bm, '1Y');
         const prices = history.map(d => d.close);
@@ -703,6 +748,20 @@ const PublicView = {
         rows.push({ name: bm, r6m, r1y });
       } catch {
         rows.push({ name: bm, r6m: { ...zeroResult }, r1y: { ...zeroResult } });
+      }
+    }
+
+    // Custom indexes
+    for (const c of customIndexes) {
+      try {
+        const history = await MarketData.getIndexHistory(c.ticker, '1Y');
+        const prices = history.map(d => d.close);
+        const p6m = prices.slice(-126);
+        const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m), rf);
+        const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(prices), rf);
+        rows.push({ name: c.name || c.ticker, r6m, r1y });
+      } catch {
+        rows.push({ name: c.name || c.ticker, r6m: { ...zeroResult }, r1y: { ...zeroResult } });
       }
     }
 
@@ -717,6 +776,57 @@ const PublicView = {
         <td class="text-center">${Utils.sharpePill(r.r1y)}</td>
       </tr>`;
     }).join('');
+  },
+
+  // --- Custom Index Search ---
+  openIndexSearch() {
+    const wrap = document.getElementById('pub-index-search');
+    if (!wrap) return;
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    if (wrap.style.display === 'block') {
+      const input = document.getElementById('pub-index-input');
+      if (input) { input.value = ''; input.focus(); }
+      const results = document.getElementById('pub-index-results');
+      if (results) results.innerHTML = '';
+    }
+  },
+
+  onIndexSearch(query) {
+    clearTimeout(this._searchTimeout);
+    const results = document.getElementById('pub-index-results');
+    if (!query || query.length < 1) { if (results) results.innerHTML = ''; return; }
+    if (results) results.innerHTML = '<div style="padding:10px;color:var(--text-dim)">Searching...</div>';
+    this._searchTimeout = setTimeout(async () => {
+      try {
+        const items = await MarketData.searchSymbol(query);
+        if (!items.length) {
+          results.innerHTML = '<div style="padding:10px;color:var(--text-dim)">No results found</div>';
+          return;
+        }
+        const existing = Storage.getCustomIndexes().map(c => c.ticker);
+        const defaults = ['SPY', 'QQQ', 'ISF.L', 'URTH'];
+        results.innerHTML = items.filter(it => !existing.includes(it.ticker) && !defaults.includes(it.ticker)).slice(0, 8).map(it =>
+          `<div class="index-result-item" onclick="PublicView.selectCustomIndex('${Utils.escHtml(it.ticker)}','${Utils.escHtml(it.name)}')">
+            <strong>${Utils.escHtml(it.ticker)}</strong>
+            <span style="color:var(--text-muted);margin-left:8px">${Utils.escHtml(it.name)}</span>
+            <span style="color:var(--text-dim);margin-left:auto;font-size:0.75rem">${Utils.escHtml(it.exchange || '')}</span>
+          </div>`
+        ).join('') || '<div style="padding:10px;color:var(--text-dim)">All results already added</div>';
+      } catch (e) {
+        results.innerHTML = '<div style="padding:10px;color:var(--text-dim)">Search failed — try again</div>';
+      }
+    }, 350);
+  },
+
+  selectCustomIndex(ticker, name) {
+    if (Storage.addCustomIndex(ticker, name)) {
+      this.render(document.getElementById('page-content'));
+    }
+  },
+
+  removeCustomIndex(ticker) {
+    Storage.removeCustomIndex(ticker);
+    this.render(document.getElementById('page-content'));
   },
 
   // --- Holdings ---
