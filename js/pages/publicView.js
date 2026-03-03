@@ -687,19 +687,20 @@ const PublicView = {
     if (!tbody) return;
 
     const benchmarks = ['S&P 500', 'NASDAQ 100', 'FTSE 100', 'MSCI World'];
-    const rows = [{ name: 'Portfolio', r6m: { sharpe: 0, annReturn: 0, annVol: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0 } }];
+    const rf = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
+    const zeroResult = { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate: rf, dataPoints: 0 };
+    const rows = [{ name: 'Portfolio', r6m: zeroResult, r1y: zeroResult }];
 
     for (const bm of benchmarks) {
       try {
         const history = await MarketData.getBenchmarkHistory(bm, '1Y');
         const prices = history.map(d => d.close);
         const p6m = prices.slice(-126);
-        const rf = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
         const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(p6m), rf);
         const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(prices), rf);
         rows.push({ name: bm, r6m, r1y });
       } catch {
-        rows.push({ name: bm, r6m: { sharpe: 0, annReturn: 0, annVol: 0 }, r1y: { sharpe: 0, annReturn: 0, annVol: 0 } });
+        rows.push({ name: bm, r6m: { ...zeroResult }, r1y: { ...zeroResult } });
       }
     }
 

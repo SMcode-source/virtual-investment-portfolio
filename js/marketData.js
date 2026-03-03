@@ -184,7 +184,7 @@ const MarketData = {
     }
   },
 
-  // --- Historical Data (fetch full 25yr once, slice by period) ---
+  // --- Historical Data (fetch full 15yr once, slice by period) ---
 
   // Fetch full history for a ticker (cached for 1hr)
   async _fetchFullHistory(ticker) {
@@ -246,7 +246,7 @@ const MarketData = {
     return fullHistory.filter(d => d.date >= startDate && d.date <= (endDate || '9999'));
   },
 
-  // Public API: get history for a ticker and period (fetches full 25yr, slices internally)
+  // Public API: get history for a ticker and period (fetches full 15yr, slices internally)
   async getHistory(ticker, period = '1Y') {
     const full = await this._fetchFullHistory(ticker);
     return this._sliceByPeriod(full, period);

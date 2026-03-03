@@ -302,12 +302,11 @@ const Dashboard = {
     };
 
     // Fetch benchmark data (full 15yr cached internally, sliced by period)
-    const bmNames = { sp500: 'S&P 500', nasdaq: 'NASDAQ 100', ftse: 'FTSE 100', msci: 'MSCI World' };
     const rawSeries = {};
-    const fetches = Object.entries(bmNames).map(async ([key, name]) => {
+    const fetches = Object.entries(benchmarks).map(async ([key, bm]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        rawSeries[key] = await MarketData.getBenchmarkHistory(name, this.selectedPeriod);
+        rawSeries[key] = await MarketData.getBenchmarkHistory(bm.name, this.selectedPeriod);
       } catch {}
     });
     await Promise.all(fetches);
@@ -351,7 +350,6 @@ const Dashboard = {
         // Filter out leading nulls (series that started later)
         const firstIdx = bm.data.findIndex(v => v !== null);
         const prices = firstIdx >= 0 ? bm.data.slice(firstIdx) : [];
-        const chartLabels = firstIdx >= 0 ? labels.slice(firstIdx) : [];
         const cumReturns = Utils.cumulativeReturns(prices);
         // Pad with nulls at the start so Chart.js aligns to the shared x-axis
         const padded = new Array(firstIdx).fill(null).concat(cumReturns);
@@ -421,21 +419,19 @@ const Dashboard = {
     if (!tbody) return;
 
     const riskFree = (Storage.getSettings().riskFreeRate ?? 4.0) / 100;
-    const bmNames = { sp500: 'S&P 500', nasdaq: 'NASDAQ 100', ftse: 'FTSE 100', msci: 'MSCI World' };
 
     // Build series list — if a benchmark is missing from chart data, fetch independently
     const series = [{ name: 'Portfolio', data: [] }];
-    for (const [key, name] of Object.entries(bmNames)) {
-      const bm = benchmarks[key];
-      if (bm && bm.data && bm.data.length) {
+    for (const [key, bm] of Object.entries(benchmarks)) {
+      if (bm.data && bm.data.length) {
         series.push({ name: bm.name, data: bm.data });
       } else {
         // Fetch independently so the table always shows all benchmarks
         try {
-          const history = await MarketData.getBenchmarkHistory(name, '1Y');
-          series.push({ name, data: history.map(d => d.close) });
+          const history = await MarketData.getBenchmarkHistory(bm.name, '1Y');
+          series.push({ name: bm.name, data: history.map(d => d.close) });
         } catch {
-          series.push({ name, data: [] });
+          series.push({ name: bm.name, data: [] });
         }
       }
     }

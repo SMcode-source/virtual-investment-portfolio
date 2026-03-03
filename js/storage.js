@@ -126,7 +126,7 @@ const Storage = {
   },
 
   // --- Historical Price Cache (1hr fresh TTL, persistent fallback) ---
-  // Full 25-year dataset cached per ticker (no period in key)
+  // Full 15-year dataset cached per ticker (no period in key)
   getCachedHistory(ticker) {
     const cache = this.get('historyCache', {});
     const entry = cache[ticker];

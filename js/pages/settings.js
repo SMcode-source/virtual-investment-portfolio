@@ -236,7 +236,7 @@ const Settings = {
     const answer = prompt('Type YES to confirm data reset:');
     if (answer !== 'YES') return;
 
-    ['settings','trades','journal','thinkPieces','watchlist','snapshots','priceCache','historyCache'].forEach(k => {
+    ['settings','trades','journal','thinkPieces','watchlist','snapshots','priceCache','historyCache','priceStore','historyStore'].forEach(k => {
       Storage.remove(k);
     });
     alert('All data has been reset.');
@@ -386,7 +386,7 @@ const Settings = {
     try {
       Storage.remove('historyCache');
       const start = performance.now();
-      const history = await MarketData.getHistory('SPY', '1M', '1d');
+      const history = await MarketData.getHistory('SPY', '1M');
       const elapsed = (performance.now() - start).toFixed(0);
 
       if (history && history.length > 0) {
@@ -488,7 +488,7 @@ const Settings = {
     this._log('STEP 3: Historical Data (SPY 1M daily)');
     try {
       Storage.remove('historyCache');
-      const hist = await MarketData.getHistory('SPY', '1M', '1d');
+      const hist = await MarketData.getHistory('SPY', '1M');
       if (hist.length > 0) {
         this._log(`  Received ${hist.length} bars: ${hist[0].date} → ${hist[hist.length - 1].date}`, 'ok');
         const ret = ((hist[hist.length-1].close - hist[0].close) / hist[0].close * 100);
