@@ -368,30 +368,22 @@ const PublicView = {
       msci:   { name: 'MSCI World',  bmKey: 'MSCI World',  color: '#8b5cf6' }
     };
 
-    const benchmarkData = {};
     const isCustom = this.selectedPeriod === 'Custom' && this.customDateStart;
+    const rawSeries = {};
 
     // Fetch all visible benchmark series in parallel
     const fetches = Object.entries(seriesConfig).map(async ([key, cfg]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        const history = isCustom
+        rawSeries[key] = isCustom
           ? await MarketData.getBenchmarkHistoryByDate(cfg.bmKey, this.customDateStart, this.customDateEnd || new Date().toISOString().split('T')[0])
           : await MarketData.getBenchmarkHistory(cfg.bmKey, this.selectedPeriod);
-        benchmarkData[key] = {
-          ...cfg,
-          dates: history.map(d => d.date),
-          prices: history.map(d => d.close)
-        };
       } catch {}
     });
     await Promise.all(fetches);
 
-    // Find the longest date series for x-axis labels
-    let labels = [];
-    Object.values(benchmarkData).forEach(bm => {
-      if (bm.dates && bm.dates.length > labels.length) labels = bm.dates;
-    });
+    // Align all series to a common date axis (forward-fill missing dates)
+    const { labels, aligned } = MarketData.alignSeries(rawSeries);
 
     if (!labels.length) {
       const ctx = canvas.getContext('2d');
@@ -405,7 +397,7 @@ const PublicView = {
 
     // Build datasets
     const datasets = [];
-    const rollingSharpeData = {}; // stored per-series for tooltip
+    const rollingSharpeData = {};
 
     // Portfolio series (computed from daily trade-replay)
     if (this.visibleSeries.portfolio) {
@@ -420,25 +412,35 @@ const PublicView = {
         borderWidth: 2.5,
         pointRadius: 0,
         tension: 0.3,
-        borderDash: portReturns.length ? [] : [5, 5] // dashed if placeholder
+        borderDash: portReturns.length ? [] : [5, 5]
       });
     }
 
-    // Benchmark series
-    Object.entries(benchmarkData).forEach(([key, bm]) => {
-      const cumReturns = Utils.cumulativeReturns(bm.prices);
-      const dailyRet = bm.prices.map((p, i) => i === 0 ? 1 : p / bm.prices[0]);
-      const sharpeArr = this.computeRollingSharpe(bm.prices, this.sharpeWindow);
-      rollingSharpeData[bm.name] = sharpeArr;
+    // Benchmark series — use aligned prices
+    Object.entries(aligned).forEach(([key, prices]) => {
+      const cfg = seriesConfig[key];
+      if (!cfg) return;
+
+      // Find first non-null index (series may start later)
+      const firstIdx = prices.findIndex(v => v !== null);
+      if (firstIdx < 0) return;
+      const validPrices = prices.slice(firstIdx);
+      const cumReturns = Utils.cumulativeReturns(validPrices);
+      const padded = new Array(firstIdx).fill(null).concat(cumReturns);
+
+      const sharpeArr = this.computeRollingSharpe(validPrices, this.sharpeWindow);
+      const paddedSharpe = new Array(firstIdx).fill(null).concat(sharpeArr);
+      rollingSharpeData[cfg.name] = paddedSharpe;
 
       datasets.push({
-        label: bm.name,
-        data: cumReturns,
-        borderColor: bm.color,
-        backgroundColor: bm.color + '10',
+        label: cfg.name,
+        data: padded,
+        borderColor: cfg.color,
+        backgroundColor: cfg.color + '10',
         borderWidth: 2,
         pointRadius: 0,
-        tension: 0.3
+        tension: 0.3,
+        spanGaps: true
       });
     });
 

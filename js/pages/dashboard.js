@@ -301,26 +301,21 @@ const Dashboard = {
       msci: { name: 'MSCI World', color: '#8b5cf6', data: [] }
     };
 
-    // Fetch benchmark data (full 25yr cached internally, sliced by period)
+    // Fetch benchmark data (full 15yr cached internally, sliced by period)
     const bmNames = { sp500: 'S&P 500', nasdaq: 'NASDAQ 100', ftse: 'FTSE 100', msci: 'MSCI World' };
+    const rawSeries = {};
     const fetches = Object.entries(bmNames).map(async ([key, name]) => {
       if (!this.visibleSeries[key]) return;
       try {
-        const history = await MarketData.getBenchmarkHistory(name, this.selectedPeriod);
-        benchmarks[key].data = history.map(d => d.close);
-        benchmarks[key].dates = history.map(d => d.date);
+        rawSeries[key] = await MarketData.getBenchmarkHistory(name, this.selectedPeriod);
       } catch {}
     });
     await Promise.all(fetches);
 
-    // Find the longest date series for labels
-    let labels = [];
-    Object.values(benchmarks).forEach(bm => {
-      if (bm.dates && bm.dates.length > labels.length) labels = bm.dates;
-    });
+    // Align all series to a common date axis (forward-fill missing dates)
+    const { labels, aligned } = MarketData.alignSeries(rawSeries);
 
     if (!labels.length) {
-      // No MarketData data — show empty state
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#8b90a0';
       ctx.font = '14px Inter, sans-serif';
@@ -329,14 +324,19 @@ const Dashboard = {
       return;
     }
 
+    // Store aligned data back into benchmarks for Sharpe table
+    Object.keys(aligned).forEach(key => {
+      benchmarks[key].data = aligned[key];
+      benchmarks[key].dates = labels;
+    });
+
     const datasets = [];
 
     // Portfolio series (computed from trades)
     if (this.visibleSeries.portfolio) {
-      // Simple portfolio value series — in production this would be daily computed
       datasets.push({
         label: 'Portfolio',
-        data: labels.map(() => 0), // Placeholder until we have daily portfolio values
+        data: labels.map(() => 0),
         borderColor: '#4f46e5',
         backgroundColor: '#4f46e510',
         borderWidth: 2,
@@ -345,18 +345,25 @@ const Dashboard = {
       });
     }
 
-    // Benchmark series
+    // Benchmark series — use aligned prices for cumulative returns
     Object.entries(benchmarks).forEach(([key, bm]) => {
-      if (this.visibleSeries[key] && bm.data.length) {
-        const cumReturns = Utils.cumulativeReturns(bm.data);
+      if (this.visibleSeries[key] && bm.data && bm.data.length) {
+        // Filter out leading nulls (series that started later)
+        const firstIdx = bm.data.findIndex(v => v !== null);
+        const prices = firstIdx >= 0 ? bm.data.slice(firstIdx) : [];
+        const chartLabels = firstIdx >= 0 ? labels.slice(firstIdx) : [];
+        const cumReturns = Utils.cumulativeReturns(prices);
+        // Pad with nulls at the start so Chart.js aligns to the shared x-axis
+        const padded = new Array(firstIdx).fill(null).concat(cumReturns);
         datasets.push({
           label: bm.name,
-          data: cumReturns,
+          data: padded,
           borderColor: bm.color,
           backgroundColor: bm.color + '10',
           borderWidth: 2,
           pointRadius: 0,
-          tension: 0.3
+          tension: 0.3,
+          spanGaps: true
         });
       }
     });
@@ -420,8 +427,10 @@ const Dashboard = {
     ];
 
     const rows = series.map(s => {
-      const prices6m = s.data.slice(-126);
-      const prices1y = s.data.slice(-252);
+      // Filter out null values (from date alignment forward-fill padding)
+      const clean = s.data.filter(v => v !== null);
+      const prices6m = clean.slice(-126);
+      const prices1y = clean.slice(-252);
       const r6m = Utils.calcSharpeRatio(Utils.dailyReturns(prices6m), riskFree);
       const r1y = Utils.calcSharpeRatio(Utils.dailyReturns(prices1y), riskFree);
       const rating6m = Utils.sharpeRating(r6m.sharpe);

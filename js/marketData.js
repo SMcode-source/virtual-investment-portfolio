@@ -186,9 +186,9 @@ const MarketData = {
     if (cached) return cached;
 
     try {
-      // Fetch 25 years of daily data using period1/period2 timestamps
+      // Fetch 15 years of daily data using period1/period2 timestamps
       const now = Math.floor(Date.now() / 1000);
-      const start = now - Math.floor(25 * 365.25 * 86400);
+      const start = now - Math.floor(15 * 365.25 * 86400);
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${start}&period2=${now}&interval=1d`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
@@ -250,6 +250,38 @@ const MarketData = {
   async getHistoryByDate(ticker, startDate, endDate) {
     const full = await this._fetchFullHistory(ticker);
     return this._sliceByDateRange(full, startDate, endDate);
+  },
+
+  // Align multiple history arrays to a common date axis.
+  // Input: object like { sp500: [{date,close,...}], ftse: [{date,close,...}] }
+  // Returns: { labels: [dates], aligned: { sp500: [closes], ftse: [closes] } }
+  // Missing dates for a series get the previous known close (forward-fill).
+  alignSeries(seriesMap) {
+    // Build union of all dates, sorted
+    const dateSet = new Set();
+    for (const arr of Object.values(seriesMap)) {
+      for (const d of arr) dateSet.add(d.date);
+    }
+    const labels = [...dateSet].sort();
+    if (!labels.length) return { labels: [], aligned: {} };
+
+    const aligned = {};
+    for (const [key, arr] of Object.entries(seriesMap)) {
+      // Build date→close lookup
+      const lookup = {};
+      for (const d of arr) lookup[d.date] = d.close;
+
+      // Forward-fill: for each date in labels, use the close or last known
+      const values = [];
+      let lastVal = null;
+      for (const date of labels) {
+        if (lookup[date] != null) lastVal = lookup[date];
+        values.push(lastVal);
+      }
+      aligned[key] = values;
+    }
+
+    return { labels, aligned };
   },
 
   // --- Benchmark ETFs ---
