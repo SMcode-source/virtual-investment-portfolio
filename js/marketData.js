@@ -14,7 +14,7 @@ const MarketData = {
   _queue: Promise.resolve(), // serialization queue for rate limiting
   _disconnectTimer: null,
   _reconnectInterval: null,
-  _DISCONNECT_FALLBACK_MS: 20 * 1000, // 20 seconds
+  _DISCONNECT_FALLBACK_MS: 2 * 1000, // 2 seconds
   _RECONNECT_CHECK_MS: 30 * 1000, // check every 30s for reconnection
   _MAX_RETRIES: 2, // retry failed requests up to 2 times
 
@@ -40,7 +40,7 @@ const MarketData = {
   _startDisconnectFallback() {
     this._clearDisconnectFallback();
     this._disconnectTimer = setTimeout(async () => {
-      console.log('[MarketData] Yahoo disconnected for 20s — pulling data from Firebase');
+      console.log('[MarketData] Yahoo disconnected for 2s — pulling data from Firebase');
       if (typeof FirebaseSync !== 'undefined' && FirebaseApp.ready) {
         try {
           await FirebaseSync.forcePull();
