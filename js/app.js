@@ -2,14 +2,12 @@
 const App = {
   currentPage: 'dashboard',
   pages: {},
-  _pageCache: {},       // cached DOM containers keyed by page name
   _loadingSteps: { firebase: false, sync: false, market: false },
+  _initDone: false,        // true once all 3 loading steps complete
+  _renderedPages: new Set(), // pages that have been rendered at least once
 
   // Pages that require authentication
   PROTECTED: new Set(['logTrade', 'journal', 'thinkPieces', 'settings', 'snapshots', 'watchlist']),
-
-  // Pages that should always re-render (never cache)
-  NO_CACHE: new Set(['login']),
 
   init() {
     // Register pages
@@ -38,8 +36,7 @@ const App = {
 
       FirebaseSync.init().then(() => {
         this._completeLoadingStep('sync', true);
-        // Data was pulled from cloud — clear cache so pages pick up fresh data
-        this.clearPageCache();
+        // If data was pulled from cloud, re-render to show it
         this.renderPage(this.currentPage);
       }).catch(() => {
         this._completeLoadingStep('sync', false);
@@ -171,6 +168,7 @@ const App = {
     // All done? Dismiss overlay and re-render current page with fresh data
     if (done === 3) {
       setTimeout(() => {
+        this._initDone = true;
         this._dismissOverlay();
         // Re-render the current page now that sync + market data are ready
         this.renderPage(this.currentPage);
@@ -212,53 +210,6 @@ const App = {
     }
   },
 
-  /** Ensure hidden cache container exists */
-  _getCacheRoot() {
-    let root = document.getElementById('page-cache');
-    if (!root) {
-      root = document.createElement('div');
-      root.id = 'page-cache';
-      root.style.display = 'none';
-      document.body.appendChild(root);
-    }
-    return root;
-  },
-
-  /** Stash current #page-content children into off-DOM cache */
-  _stashPage(pageName) {
-    if (this.NO_CACHE.has(pageName)) return;
-    const content = document.getElementById('page-content');
-    if (!content || !content.children.length) return;
-
-    const cacheRoot = this._getCacheRoot();
-    // Create a holder div for this page's DOM
-    const holder = document.createElement('div');
-    holder.setAttribute('data-cached-page', pageName);
-    // Move all children from #page-content into the holder
-    while (content.firstChild) {
-      holder.appendChild(content.firstChild);
-    }
-    cacheRoot.appendChild(holder);
-    this._pageCache[pageName] = holder;
-  },
-
-  /** Restore a cached page's DOM back into #page-content */
-  _restorePage(pageName) {
-    const holder = this._pageCache[pageName];
-    if (!holder) return false;
-    const content = document.getElementById('page-content');
-    if (!content) return false;
-
-    // Move all children from the cache holder back into #page-content
-    while (holder.firstChild) {
-      content.appendChild(holder.firstChild);
-    }
-    // Remove the empty holder
-    holder.remove();
-    delete this._pageCache[pageName];
-    return true;
-  },
-
   renderPage(page, params = []) {
     const content = document.getElementById('page-content');
     if (!content) return;
@@ -271,29 +222,17 @@ const App = {
     const main = document.querySelector('.main-content');
     if (main) main.style.marginLeft = page === 'login' ? '0' : '';
 
-    // If navigating to a different page, stash the current page's DOM
-    if (this._renderedPage && this._renderedPage !== page) {
-      this._stashPage(this._renderedPage);
+    // Only show spinner on the very first render (initial page load).
+    // On subsequent navigations, skip the spinner so the new page
+    // overwrites the old one instantly with no flash.
+    if (!this._renderedPages.size) {
+      content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
     }
 
-    // Try restoring from cache first
-    if (!this.NO_CACHE.has(page) && this._pageCache[page]) {
-      content.innerHTML = '';
-      this._restorePage(page);
-      this._renderedPage = page;
-      // Optional: let page know it's visible again
-      if (this.pages[page] && this.pages[page].onShow) {
-        try { this.pages[page].onShow(content, params); } catch(e) { console.error(e); }
-      }
-      return;
-    }
-
-    // No cache — render from scratch (original behaviour)
-    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
-    this._renderedPage = page;
     try {
       if (this.pages[page] && this.pages[page].render) {
         this.pages[page].render(content, params);
+        this._renderedPages.add(page);
       }
     } catch (e) {
       content.innerHTML = `<div class="error-state"><h3>Error loading page</h3><p>${e.message}</p></div>`;
@@ -301,25 +240,9 @@ const App = {
     }
   },
 
-  /** Force a fresh re-render of a page (clears its cache entry) */
-  refreshPage(page) {
-    delete this._pageCache[page];
-    if (page === this.currentPage) {
-      this._renderedPage = null;
-      this.renderPage(page);
-    }
-  },
-
-  /** Clear all cached pages (useful after data sync) */
-  clearPageCache() {
-    const cacheRoot = document.getElementById('page-cache');
-    if (cacheRoot) cacheRoot.innerHTML = '';
-    this._pageCache = {};
-    this._renderedPage = null;
-  },
-
   logout() {
     Auth.logout();
+    this._renderedPages.clear();
     window.location.hash = 'login';
   }
 };
