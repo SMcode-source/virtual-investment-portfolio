@@ -173,7 +173,7 @@ const Utils = {
     return `<span class="badge" style="background:${c}20;color:${c};border:1px solid ${c}40">${s}</span>`;
   },
 
-  // Status badge helper (used by FirebaseSync and MarketData)
+  // Status badge helper (used by CloudSync and MarketData)
   statusBadge(status, colorMap, labelMap, className) {
     const color = colorMap[status] || '#8b90a0';
     const label = labelMap[status] || status;

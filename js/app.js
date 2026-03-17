@@ -1,6 +1,6 @@
 // app.js — SPA Router & Main Application Controller
 // Loading strategy:
-//   1. Firebase init + public pull (no auth needed) → gets all portfolio data
+//   1. Cloud pull from Cloudflare KV (no auth needed) → gets all portfolio data
 //   2. Dismiss overlay, render page with cloud data, show "Cloud data loaded" toast
 //   3. Background Yahoo refresh fetches live quotes & history (non-blocking)
 //   4. When Yahoo finishes, show "Yahoo data updated" toast and re-render
@@ -10,7 +10,7 @@ const App = {
   pages: {},
   _renderedPages: new Set(),
 
-  // Pages that require authentication (site login, not Firebase)
+  // Pages that require authentication (site login)
   PROTECTED: new Set(['logTrade', 'journal', 'thinkPieces', 'settings', 'snapshots', 'watchlist']),
 
   init() {
@@ -38,7 +38,7 @@ const App = {
   },
 
   async _initSequence() {
-    const stepFirebase = document.getElementById('step-firebase');
+    const stepCloud = document.getElementById('step-cloud');
     const stepSync = document.getElementById('step-sync');
     const bar = document.getElementById('loading-bar');
     const fill = document.getElementById('loading-bar-fill');
@@ -46,32 +46,25 @@ const App = {
 
     if (bar) bar.classList.add('active');
 
-    // ---- Step 1: Firebase init ----
-    if (stepFirebase) stepFirebase.classList.add('active');
+    // ---- Step 1: Connect to cloud ----
+    if (stepCloud) stepCloud.classList.add('active');
     if (loadMsg) loadMsg.textContent = 'Connecting to cloud database...';
-    let firebaseOk = false;
-    if (typeof FirebaseApp !== 'undefined') {
-      firebaseOk = FirebaseApp.init();
-    }
-    this._markStep(stepFirebase, firebaseOk);
+    this._markStep(stepCloud, true);
     if (fill) fill.style.width = '50%';
 
     // ---- Step 2: Pull data from cloud (PUBLIC read, no auth) ----
-    // Timeout after 10s so the page renders even if Firebase is slow
     if (stepSync) stepSync.classList.add('active');
     if (loadMsg) loadMsg.textContent = 'Loading portfolio data from cloud...';
     let syncOk = false;
-    if (firebaseOk) {
-      try {
-        const syncPromise = FirebaseSync.init();
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Cloud sync timed out')), 10000)
-        );
-        await Promise.race([syncPromise, timeout]);
-        syncOk = true;
-      } catch (e) {
-        console.error('[App] Firebase sync failed:', e.message);
-      }
+    try {
+      const syncPromise = CloudSync.init();
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Cloud sync timed out')), 10000)
+      );
+      await Promise.race([syncPromise, timeout]);
+      syncOk = true;
+    } catch (e) {
+      console.error('[App] Cloud sync failed:', e.message);
     }
     this._markStep(stepSync, syncOk);
     if (fill) fill.style.width = '100%';
@@ -84,11 +77,8 @@ const App = {
       if (bar) bar.classList.remove('active');
     }, 400);
 
-    // Set up Firebase auth listener (for push capability)
-    if (firebaseOk) {
-      FirebaseSync.onStatusChange(() => this.updateSyncStatus());
-      FirebaseSync.onAuthReady((user) => this.updateSyncStatus());
-    }
+    // Listen for sync status changes
+    CloudSync.onStatusChange(() => this.updateSyncStatus());
 
     // Render the first page with cloud data
     this.route();
@@ -135,19 +125,15 @@ const App = {
 
   // --- Yahoo refresh progress UI (persistent banner above page content) ---
   _setupYahooRefreshUI() {
-    // Banner element lives in index.html, outside #page-content,
-    // so it survives page re-renders.
     const banner = document.getElementById('yahoo-refresh-banner');
     if (!banner) return;
 
     YahooRefresh.onProgress((p) => {
       if (!p.running && p.phase === 'Complete') {
-        // Yahoo refresh done — hide banner, show toast, re-render
         banner.classList.remove('active');
         setTimeout(() => { banner.innerHTML = ''; }, 300);
         this.updateMarketStatus();
         this._showToast('Yahoo Finance data updated', 'yahoo');
-        // Re-render current page with fresh data
         this.renderPage(this.currentPage);
         return;
       }
@@ -225,9 +211,7 @@ const App = {
 
   updateSyncStatus() {
     const el = document.getElementById('sync-status');
-    if (el && typeof FirebaseSync !== 'undefined') {
-      el.innerHTML = FirebaseSync.getStatusBadge();
-    }
+    if (el) el.innerHTML = CloudSync.getStatusBadge();
   },
 
   _markStep(el, success) {

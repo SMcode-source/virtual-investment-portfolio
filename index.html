@@ -28,7 +28,7 @@
     <div style="font-size:1.1rem;font-weight:600;color:var(--text)">Virtual Investment Portfolio</div>
     <div class="loading-text" id="loading-message">Loading your portfolio...</div>
     <div class="loading-steps" id="loading-steps">
-      <div class="loading-step active" id="step-firebase">
+      <div class="loading-step active" id="step-cloud">
         <span class="loading-step-icon">◌</span> Connecting to cloud database
       </div>
       <div class="loading-step" id="step-sync">
@@ -120,15 +120,9 @@
     </div>
   </div>
 
-  <!-- Firebase SDK (compat mode for simplicity) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-
   <!-- Scripts (order matters) -->
-  <script src="js/firebaseConfig.js"></script>
   <script src="js/storage.js"></script>
-  <script src="js/firebaseSync.js"></script>
+  <script src="js/cloudSync.js"></script>
   <script src="js/marketData.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/auth.js"></script>

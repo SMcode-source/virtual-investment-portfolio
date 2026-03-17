@@ -1,4 +1,4 @@
-// auth.js — Fixed-credential authentication
+// auth.js — Fixed-credential authentication + cloud sync token
 // Credentials can only be changed by updating this file and redeploying.
 // To reset, email: saptarshimanna95@gmail.com
 const Auth = {
@@ -48,28 +48,20 @@ const Auth = {
   async login(username, password) {
     if (await this.verify(username, password)) {
       this._createSession();
+      // Set sync token = password hash so cloud writes are authorized
+      const passHash = await this.hash(password);
+      if (typeof CloudSync !== 'undefined') {
+        CloudSync.setSyncToken(passHash);
+      }
       return true;
     }
     return false;
   },
 
-  // --- Google Sign-In for Cloud Sync (separate from site auth) ---
-  async signInWithGoogle() {
-    if (typeof FirebaseSync === 'undefined' || !FirebaseApp.ready) {
-      return { ok: false, error: 'Firebase not configured' };
-    }
-    try {
-      const success = await FirebaseSync.signInWithGoogle();
-      return { ok: success };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
-  },
-
   logout() {
     sessionStorage.removeItem(this.SESSION_KEY);
-    if (typeof FirebaseSync !== 'undefined') {
-      FirebaseSync.signOut();
+    if (typeof CloudSync !== 'undefined') {
+      CloudSync.signOut();
     }
   },
 

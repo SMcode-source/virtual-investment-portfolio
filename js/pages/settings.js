@@ -132,45 +132,24 @@ const Settings = {
       <div class="card" style="margin-top:24px">
         <div class="card-header">
           <div>
-            <div class="card-title">Cloud Sync (Firebase)</div>
+            <div class="card-title">Cloud Sync (Cloudflare KV)</div>
             <div class="card-subtitle">Sync your portfolio data across all devices</div>
           </div>
-          <div id="settings-sync-status">${typeof FirebaseSync !== 'undefined' ? FirebaseSync.getStatusBadge() : '<span style="color:#8b90a0;font-size:0.75rem">Not configured</span>'}</div>
+          <div id="settings-sync-status">${CloudSync.getStatusBadge()}</div>
         </div>
 
-        ${FirebaseApp.ready ? `
-          <div style="margin-bottom:16px">
-            <div id="settings-firebase-user" style="margin-bottom:12px;font-size:0.82rem;color:var(--text-muted)">
-              ${FirebaseApp.auth?.currentUser ?
-                `Signed in as <strong style="color:var(--text)">${FirebaseApp.auth.currentUser.email}</strong>` :
-                'Not signed into Google — cloud sync writes are disabled'}
-            </div>
-            ${!FirebaseApp.auth?.currentUser ? `
-              <button class="btn" style="gap:8px;margin-bottom:12px" onclick="Settings.googleSignIn()">
-                <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                Sign in with Google
-              </button>
-            ` : `
-              <button class="btn" style="margin-bottom:12px;color:var(--red);border-color:var(--red)" onclick="Settings.firebaseSignOut()">
-                Disconnect Google
-              </button>
-            `}
+        <div style="margin-bottom:16px">
+          <div style="margin-bottom:12px;font-size:0.82rem;color:var(--text-muted)">
+            ${CloudSync.isAuthenticated()
+              ? 'Cloud sync is <strong style="color:var(--green)">active</strong> — your data syncs automatically.'
+              : 'Log in to the site to enable cloud sync writes. Public reads work without login.'}
           </div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-            <button class="btn btn-primary" onclick="Settings.forceSyncPush()">Push Local → Cloud</button>
-            <button class="btn" onclick="Settings.forceSyncPull()">Pull Cloud → Local</button>
-          </div>
-          <p style="font-size:0.78rem;color:var(--text-dim)">Push uploads your local data to the cloud. Pull downloads the latest cloud data to this device. You must be signed into Google for push to work.</p>
-        ` : `
-          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px">Firebase is not configured yet. To enable cloud sync:</p>
-          <ol style="font-size:0.82rem;color:var(--text-muted);padding-left:20px;line-height:1.8">
-            <li>Go to <a href="https://console.firebase.google.com" target="_blank" style="color:var(--accent)">Firebase Console</a></li>
-            <li>Create a new project (or use an existing one)</li>
-            <li>Enable <strong>Realtime Database</strong> (Build → Realtime Database)</li>
-            <li>Enable <strong>Google sign-in</strong> in Authentication (Build → Authentication → Sign-in method)</li>
-            <li>Copy your project config into <code>js/firebaseConfig.js</code></li>
-          </ol>
-        `}
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="btn btn-primary" onclick="Settings.forceSyncPush()">Push Local → Cloud</button>
+          <button class="btn" onclick="Settings.forceSyncPull()">Pull Cloud → Local</button>
+        </div>
+        <p style="font-size:0.78rem;color:var(--text-dim)">Push uploads your local data to the cloud. Pull downloads the latest cloud data to this device. You must be logged in for push to work.</p>
       </div>
 
       <!-- Market Data Diagnostics -->
@@ -266,40 +245,19 @@ const Settings = {
   },
 
   // --- Cloud Sync ---
-  async googleSignIn() {
-    const result = await Auth.signInWithGoogle();
-    if (result.ok) {
-      // Re-render settings page to show signed-in state
-      this.render(document.getElementById('page-content'));
-      if (typeof App !== 'undefined') App.updateSyncStatus();
-    } else {
-      alert('Google sign-in failed: ' + (result.error || 'Unknown error'));
-    }
-  },
-
-  firebaseSignOut() {
-    if (typeof FirebaseSync !== 'undefined') {
-      FirebaseSync.signOut();
-    }
-    this.render(document.getElementById('page-content'));
-    if (typeof App !== 'undefined') App.updateSyncStatus();
-  },
-
   async forceSyncPush() {
-    if (typeof FirebaseSync === 'undefined') return;
-    const ok = await FirebaseSync.forcePush();
+    const ok = await CloudSync.forcePush();
     if (ok) {
       alert('All local data pushed to cloud successfully!');
     } else {
       alert('Push failed. Make sure you are logged in.');
     }
     const el = document.getElementById('settings-sync-status');
-    if (el) el.innerHTML = FirebaseSync.getStatusBadge();
+    if (el) el.innerHTML = CloudSync.getStatusBadge();
   },
 
   async forceSyncPull() {
-    if (typeof FirebaseSync === 'undefined') return;
-    const ok = await FirebaseSync.forcePull();
+    const ok = await CloudSync.forcePull();
     if (ok) {
       alert('Cloud data pulled to this device. Reloading...');
       window.location.reload();

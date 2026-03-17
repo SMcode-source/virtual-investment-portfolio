@@ -80,11 +80,11 @@ const YahooRefresh = {
       MarketData.setStatus('connected');
     }
 
-    // Push updated caches to Firebase if authenticated
-    if (!this._aborted && FirebaseSync.isFirebaseAuthenticated()) {
+    // Push updated caches to cloud if authenticated
+    if (!this._aborted && CloudSync.isAuthenticated()) {
       this._setProgress(done, totalWork, '', 'Syncing to cloud...');
       try {
-        await FirebaseSync.forcePush();
+        await CloudSync.forcePush();
       } catch (e) {
         console.warn('[YahooRefresh] Cloud push failed:', e.message);
       }
