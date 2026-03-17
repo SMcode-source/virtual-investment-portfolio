@@ -2,10 +2,14 @@
 const App = {
   currentPage: 'dashboard',
   pages: {},
+  _pageCache: {},       // cached DOM containers keyed by page name
   _loadingSteps: { firebase: false, sync: false, market: false },
 
   // Pages that require authentication
   PROTECTED: new Set(['logTrade', 'journal', 'thinkPieces', 'settings', 'snapshots', 'watchlist']),
+
+  // Pages that should always re-render (never cache)
+  NO_CACHE: new Set(['login']),
 
   init() {
     // Register pages
@@ -34,7 +38,8 @@ const App = {
 
       FirebaseSync.init().then(() => {
         this._completeLoadingStep('sync', true);
-        // If data was pulled from cloud, re-render to show it
+        // Data was pulled from cloud — clear cache so pages pick up fresh data
+        this.clearPageCache();
         this.renderPage(this.currentPage);
       }).catch(() => {
         this._completeLoadingStep('sync', false);
@@ -219,15 +224,66 @@ const App = {
     const main = document.querySelector('.main-content');
     if (main) main.style.marginLeft = page === 'login' ? '0' : '';
 
-    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+    // --- Page caching: hide all cached pages, show the target ---
+    // Hide every cached page container
+    for (const [key, el] of Object.entries(this._pageCache)) {
+      el.style.display = 'none';
+    }
+
+    // If we already have a cached container for this page (and caching allowed), show it
+    if (!this.NO_CACHE.has(page) && this._pageCache[page]) {
+      this._pageCache[page].style.display = '';
+      // Let the page know it's being shown again (if it has an onShow hook)
+      if (this.pages[page] && this.pages[page].onShow) {
+        try { this.pages[page].onShow(this._pageCache[page], params); } catch(e) { console.error(e); }
+      }
+      return;
+    }
+
+    // No cache — create a new wrapper div for this page
+    const wrapper = document.createElement('div');
+    wrapper.className = 'page-wrapper';
+    wrapper.setAttribute('data-page', page);
+
+    // Clear any leftover non-cached content (like the initial spinner)
+    const orphans = content.querySelectorAll(':scope > :not(.page-wrapper)');
+    orphans.forEach(el => el.remove());
+
+    content.appendChild(wrapper);
+
+    // Render into the wrapper
     try {
       if (this.pages[page] && this.pages[page].render) {
-        this.pages[page].render(content, params);
+        this.pages[page].render(wrapper, params);
       }
     } catch (e) {
-      content.innerHTML = `<div class="error-state"><h3>Error loading page</h3><p>${e.message}</p></div>`;
+      wrapper.innerHTML = `<div class="error-state"><h3>Error loading page</h3><p>${e.message}</p></div>`;
       console.error(e);
     }
+
+    // Cache it (unless excluded)
+    if (!this.NO_CACHE.has(page)) {
+      this._pageCache[page] = wrapper;
+    }
+  },
+
+  /** Force a fresh re-render of a page (clears its cache entry) */
+  refreshPage(page) {
+    if (this._pageCache[page]) {
+      this._pageCache[page].remove();
+      delete this._pageCache[page];
+    }
+    if (page === this.currentPage) {
+      this.renderPage(page);
+    }
+  },
+
+  /** Clear all cached pages (useful after data sync) */
+  clearPageCache() {
+    for (const [key, el] of Object.entries(this._pageCache)) {
+      el.remove();
+    }
+    this._pageCache = {};
   },
 
   logout() {
