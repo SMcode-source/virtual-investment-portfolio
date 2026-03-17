@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "portfolio": {
+      ".read": true,
+      ".write": "auth != null"
+    }
+  }
+}

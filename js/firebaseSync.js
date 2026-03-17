@@ -1,6 +1,6 @@
 // firebaseSync.js — Bidirectional sync between localStorage and Firebase Realtime Database
-// All portfolio data is synced to Firebase so it persists across devices.
-// Public visitors get read-only access. Authenticated users can write.
+// Public visitors get read-only access (no auth needed to read).
+// Authenticated users can write (push) data to cloud.
 
 const FirebaseSync = {
   _syncing: false,
@@ -21,8 +21,6 @@ const FirebaseSync = {
   ],
 
   // Benchmark tickers whose history is synced to Firebase per-ticker
-  // (stored under portfolio/history/{sanitizedTicker} to avoid localStorage quota issues)
-  // Dynamically includes custom user-added indexes from settings
   _DEFAULT_HISTORY_TICKERS: ['SPY', 'QQQ', 'ISF.L', 'URTH'],
   get HISTORY_TICKERS() {
     const custom = (Storage.getSettings().customIndexes || []).map(c => c.ticker);
@@ -65,7 +63,7 @@ const FirebaseSync = {
     }
   },
 
-  // --- Initialize: pull cloud data into localStorage, set up live listeners ---
+  // --- Initialize: pull cloud data (publicly readable, no auth needed) ---
   async init() {
     if (!FirebaseApp.ready) {
       console.log('[Sync] Firebase not ready — local-only mode');
@@ -86,10 +84,10 @@ const FirebaseSync = {
         console.warn('[Sync] Redirect result check:', redirectErr.code, redirectErr.message);
       }
 
-      // Pull all cloud data into localStorage (cloud wins on first load)
+      // Pull all cloud data — this is a PUBLIC read, no auth needed
       await this._pullAll();
 
-      // Set up real-time listeners so other tabs/devices stay in sync
+      // Set up real-time listeners (also public reads)
       this._listenForChanges();
 
       // Start auto-sync every 5 minutes
@@ -99,14 +97,14 @@ const FirebaseSync = {
       this._listenForTabFocus();
 
       this.setStatus('synced');
-      console.log('[Sync] Initial pull complete, live sync active, auto-sync every 5min');
+      console.log('[Sync] Initial pull complete, live sync active');
     } catch (e) {
       console.error('[Sync] Init failed:', e.message);
       this.setStatus('error');
     }
   },
 
-  // --- Pull all keys from Firebase into localStorage ---
+  // --- Pull all keys from Firebase into localStorage (PUBLIC — no auth needed) ---
   async _pullAll() {
     const db = FirebaseApp.db;
     if (!db) return;
@@ -115,9 +113,14 @@ const FirebaseSync = {
     const cloudData = snapshot.val();
 
     if (!cloudData) {
-      // Cloud is empty — push local data up (first-time setup)
-      console.log('[Sync] Cloud empty — pushing local data up');
-      await this._pushAll();
+      // Cloud is empty — if user is signed in, push local data up (first-time setup)
+      const user = FirebaseApp.auth?.currentUser;
+      if (user) {
+        console.log('[Sync] Cloud empty & signed in — pushing local data up');
+        await this._pushAll();
+      } else {
+        console.log('[Sync] Cloud empty — waiting for sign-in to push');
+      }
       return;
     }
 
@@ -132,10 +135,17 @@ const FirebaseSync = {
     await this._pullHistory();
   },
 
-  // --- Push all local data to Firebase ---
+  // --- Push all local data to Firebase (REQUIRES AUTH) ---
   async _pushAll() {
     const db = FirebaseApp.db;
     if (!db) return;
+
+    // Only push if user is authenticated
+    const user = FirebaseApp.auth?.currentUser;
+    if (!user) {
+      console.warn('[Sync] Must be signed in to push data');
+      return;
+    }
 
     const data = {};
     for (const key of this.ALL_KEYS) {
@@ -148,20 +158,22 @@ const FirebaseSync = {
     // Use update (not set) to avoid wiping the history subtree
     await db.ref('portfolio').update(data);
 
-    // Push per-ticker history data separately (stored under portfolio/history/{ticker})
+    // Push per-ticker history data separately
     await this._pushHistory();
 
     console.log('[Sync] Pushed all local data to cloud');
   },
 
-  // Push per-ticker history from localStorage to Firebase
+  // Push per-ticker history from localStorage to Firebase (REQUIRES AUTH)
   async _pushHistory() {
     const db = FirebaseApp.db;
     if (!db) return;
 
+    const user = FirebaseApp.auth?.currentUser;
+    if (!user) return;
+
     for (const ticker of this.HISTORY_TICKERS) {
       const safeTicker = this._sanitizeTicker(ticker);
-      // Push the persistent fallback store (vip_hs_*) — it has the full 15yr data
       const raw = localStorage.getItem(Storage._hsKey(ticker));
       if (raw) {
         try {
@@ -175,7 +187,7 @@ const FirebaseSync = {
     console.log('[Sync] Pushed per-ticker history to cloud');
   },
 
-  // Pull per-ticker history from Firebase into localStorage
+  // Pull per-ticker history from Firebase into localStorage (PUBLIC)
   async _pullHistory() {
     const db = FirebaseApp.db;
     if (!db) return;
@@ -191,11 +203,9 @@ const FirebaseSync = {
         try {
           const json = JSON.stringify(entry);
           localStorage.setItem(Storage._hsKey(ticker), json);
-          // Also populate the fresh cache key so charts render immediately
           localStorage.setItem(Storage._hcKey(ticker), json);
           console.log(`[Sync] Restored ${entry.data.length} bars for ${ticker} from cloud`);
         } catch (e) {
-          // Quota overflow — clear and retry once
           console.warn(`[Sync] Quota exceeded restoring ${ticker} history — clearing caches`);
           Storage._clearHistoryCaches();
           try {
@@ -208,20 +218,18 @@ const FirebaseSync = {
     }
   },
 
-  // Sanitize ticker for use as Firebase key (e.g. ISF.L → ISF%2EL)
   _sanitizeTicker(ticker) {
     return ticker.replace(/\./g, '%2E').replace(/#/g, '%23').replace(/\$/g, '%24').replace(/\//g, '%2F').replace(/\[/g, '%5B').replace(/\]/g, '%5D');
   },
 
-  // --- Listen for real-time changes from Firebase ---
+  // --- Listen for real-time changes from Firebase (PUBLIC reads) ---
   _listenForChanges() {
     const db = FirebaseApp.db;
     if (!db) return;
 
-    // Listen for standard key changes
     for (const key of this.ALL_KEYS) {
       db.ref(`portfolio/${key}`).on('value', (snapshot) => {
-        if (this._syncing) return; // Ignore our own writes
+        if (this._syncing) return;
         const val = snapshot.val();
         if (val !== null && val !== undefined) {
           localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(val)));
@@ -229,7 +237,6 @@ const FirebaseSync = {
       });
     }
 
-    // Listen for per-ticker history changes
     for (const ticker of this.HISTORY_TICKERS) {
       const safeTicker = this._sanitizeTicker(ticker);
       db.ref(`portfolio/history/${safeTicker}`).on('value', (snapshot) => {
@@ -246,17 +253,15 @@ const FirebaseSync = {
     }
   },
 
-  // --- Write a single key to Firebase (called after localStorage writes) ---
+  // --- Write a single key to Firebase (REQUIRES AUTH) ---
   async syncKey(key) {
     if (!FirebaseApp.ready) return;
-
-    // Skip large cache keys — they sync only during periodic auto-sync
     if (this.CACHE_KEYS.includes(key)) return;
 
     const db = FirebaseApp.db;
     if (!db) return;
 
-    // Only sync if user is authenticated (Firebase auth)
+    // Only sync if user is authenticated
     const user = FirebaseApp.auth?.currentUser;
     if (!user) return;
 
@@ -278,7 +283,7 @@ const FirebaseSync = {
     }
   },
 
-  // --- Force push everything to cloud (manual sync) ---
+  // --- Force push everything to cloud (REQUIRES AUTH) ---
   async forcePush() {
     if (!FirebaseApp.ready) return false;
     const user = FirebaseApp.auth?.currentUser;
@@ -299,7 +304,7 @@ const FirebaseSync = {
     }
   },
 
-  // --- Force pull from cloud (manual sync) ---
+  // --- Force pull from cloud (PUBLIC — no auth needed) ---
   async forcePull() {
     if (!FirebaseApp.ready) return false;
     this.setStatus('syncing');
@@ -323,16 +328,14 @@ const FirebaseSync = {
       try {
         result = await FirebaseApp.auth.signInWithPopup(provider);
       } catch (popupErr) {
-        // If popup blocked or fails, fall back to redirect
         if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
           console.warn('[Sync] Popup blocked — falling back to redirect sign-in');
           await FirebaseApp.auth.signInWithRedirect(provider);
-          return true; // Will complete after redirect
+          return true;
         }
         throw popupErr;
       }
       console.log('[Sync] Google sign-in successful:', result.user.email);
-      // After signing in, push local data to cloud
       await this._pushAll();
       this.setStatus('synced');
       return true;
@@ -342,25 +345,21 @@ const FirebaseSync = {
     }
   },
 
-  // Check if already signed into Firebase (persisted across sessions)
   isFirebaseAuthenticated() {
     return !!(FirebaseApp.auth?.currentUser);
   },
 
-  // Listen for Firebase auth state changes
   onAuthReady(callback) {
     if (!FirebaseApp.ready || !FirebaseApp.auth) return;
     FirebaseApp.auth.onAuthStateChanged((user) => {
       if (user) {
         console.log('[Sync] Firebase user restored:', user.email);
-        // Auto-push on auth restore
         this._pushAll().catch(() => {});
       }
       if (callback) callback(user);
     });
   },
 
-  // --- Pull from Firebase when user returns to this browser tab ---
   _listenForTabFocus() {
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible' && FirebaseApp.ready) {
@@ -375,9 +374,8 @@ const FirebaseSync = {
     });
   },
 
-  // --- Auto-sync every 5 minutes ---
   _startAutoSync() {
-    this._stopAutoSync(); // clear any existing interval
+    this._stopAutoSync();
     this._autoSyncInterval = setInterval(async () => {
       const user = FirebaseApp.auth?.currentUser;
       if (user) {
@@ -389,14 +387,13 @@ const FirebaseSync = {
           console.error('[Sync] Auto-sync push failed:', e.message);
         }
       }
-      // Always pull latest (even for public visitors)
+      // Always pull latest (public read)
       try {
         await this._pullAll();
       } catch (e) {
         console.error('[Sync] Auto-sync pull failed:', e.message);
       }
     }, this.AUTO_SYNC_MS);
-    console.log('[Sync] Auto-sync started (every 5 minutes)');
   },
 
   _stopAutoSync() {
@@ -414,7 +411,6 @@ const FirebaseSync = {
     this.setStatus('offline');
   },
 
-  // --- Status badge for UI ---
   getStatusBadge() {
     const colors = {
       offline: '#8b90a0',

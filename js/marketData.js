@@ -26,12 +26,10 @@ const MarketData = {
       this.status = s;
       this._notify();
 
-      // When Yahoo disconnects, start a 20s timer to pull from Firebase + start reconnect polling
+      // When Yahoo disconnects, start reconnect polling
       if (s === 'disconnected') {
-        this._startDisconnectFallback();
         this._startReconnectPolling();
       } else if (s === 'connected') {
-        this._clearDisconnectFallback();
         this._stopReconnectPolling();
       }
     }
