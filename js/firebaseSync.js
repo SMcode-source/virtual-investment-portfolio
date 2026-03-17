@@ -75,15 +75,21 @@ const FirebaseSync = {
     this.setStatus('syncing');
 
     try {
-      // Check if returning from a redirect sign-in
+      // Check if returning from a redirect sign-in (with 5s timeout)
       try {
-        const redirectResult = await FirebaseApp.auth.getRedirectResult();
+        const redirectPromise = FirebaseApp.auth.getRedirectResult();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 5000)
+        );
+        const redirectResult = await Promise.race([redirectPromise, timeoutPromise]);
         if (redirectResult?.user) {
           console.log('[Sync] Redirect sign-in completed:', redirectResult.user.email);
           await this._pushAll();
         }
       } catch (redirectErr) {
-        console.warn('[Sync] Redirect result check:', redirectErr.code, redirectErr.message);
+        if (redirectErr.message !== 'timeout') {
+          console.warn('[Sync] Redirect result check:', redirectErr.code || '', redirectErr.message);
+        }
       }
 
       // Pull all cloud data — this is a PUBLIC read, no auth needed
@@ -102,14 +108,39 @@ const FirebaseSync = {
   },
 
   // --- Pull all keys from Firebase into localStorage (PUBLIC — no auth needed) ---
+  // Downloads each key individually to avoid downloading the massive history
+  // subtree as part of a single giant read. History is fetched separately.
   async _pullAll() {
     const db = FirebaseApp.db;
     if (!db) return;
 
-    const snapshot = await db.ref('portfolio').once('value');
-    const cloudData = snapshot.val();
+    const now = Date.now();
+    let anyData = false;
 
-    if (!cloudData) {
+    // Pull each key individually (small reads, fast)
+    for (const key of this.ALL_KEYS) {
+      try {
+        const snapshot = await db.ref(`portfolio/${key}`).once('value');
+        const val = snapshot.val();
+        if (val !== null && val !== undefined) {
+          anyData = true;
+          let restored = this._restoreKeys(val);
+          // Refresh timestamps on price caches so stale cloud data is still usable
+          // until Yahoo refresh updates it with fresh prices
+          if ((key === 'priceCache' || key === 'priceStore') && restored && typeof restored === 'object') {
+            for (const ticker of Object.keys(restored)) {
+              if (restored[ticker] && restored[ticker].ts) restored[ticker].ts = now;
+            }
+          }
+          localStorage.setItem(`vip_${key}`, JSON.stringify(restored));
+          console.log(`[Sync] Pulled ${key} from cloud`);
+        }
+      } catch (e) {
+        console.warn(`[Sync] Failed to pull ${key}:`, e.message);
+      }
+    }
+
+    if (!anyData) {
       // Cloud is empty — if user is signed in, push local data up (first-time setup)
       const user = FirebaseApp.auth?.currentUser;
       if (user) {
@@ -121,23 +152,7 @@ const FirebaseSync = {
       return;
     }
 
-    // Merge: cloud data wins for each key that exists in cloud
-    const now = Date.now();
-    for (const key of this.ALL_KEYS) {
-      if (cloudData[key] !== undefined) {
-        let val = this._restoreKeys(cloudData[key]);
-        // Refresh timestamps on price caches so stale cloud data is still usable
-        // until Yahoo refresh updates it with fresh prices
-        if ((key === 'priceCache' || key === 'priceStore') && val && typeof val === 'object') {
-          for (const ticker of Object.keys(val)) {
-            if (val[ticker] && val[ticker].ts) val[ticker].ts = now;
-          }
-        }
-        localStorage.setItem(`vip_${key}`, JSON.stringify(val));
-      }
-    }
-
-    // Pull per-ticker history data from Firebase into localStorage
+    // Pull per-ticker history data from Firebase (each ticker is a separate read)
     await this._pullHistory();
   },
 
@@ -194,37 +209,40 @@ const FirebaseSync = {
   },
 
   // Pull per-ticker history from Firebase into localStorage (PUBLIC)
+  // Each ticker is a separate small read to avoid downloading all history at once.
   // Refreshes the timestamp to Date.now() so cloud data is treated as valid cache.
   // If the data is stale (missing recent dates), it still displays — Yahoo fills gaps later.
   async _pullHistory() {
     const db = FirebaseApp.db;
     if (!db) return;
 
-    const snapshot = await db.ref('portfolio/history').once('value');
-    const historyData = snapshot.val();
-    if (!historyData) return;
-
     for (const ticker of this.HISTORY_TICKERS) {
       const safeTicker = this._sanitizeTicker(ticker);
-      const entry = historyData[safeTicker];
-      if (entry && entry.data) {
-        try {
+      try {
+        const snapshot = await db.ref(`portfolio/history/${safeTicker}`).once('value');
+        const entry = snapshot.val();
+        if (entry && entry.data) {
           // Refresh timestamp so this data is treated as valid cache
-          // (even if the actual data is days/weeks old). Missing recent dates
-          // will be blank until Yahoo refresh fills them in.
           const refreshed = { data: entry.data, ts: Date.now() };
           const json = JSON.stringify(refreshed);
           localStorage.setItem(Storage._hsKey(ticker), json);
           localStorage.setItem(Storage._hcKey(ticker), json);
           console.log(`[Sync] Restored ${entry.data.length} bars for ${ticker} from cloud`);
-        } catch (e) {
-          console.warn(`[Sync] Quota exceeded restoring ${ticker} history — clearing caches`);
+        }
+      } catch (e) {
+        console.warn(`[Sync] Failed to pull history for ${ticker}:`, e.message);
+        // On quota overflow, clear old caches and retry this ticker
+        if (e.name === 'QuotaExceededError') {
           Storage._clearHistoryCaches();
           try {
-            const refreshed = { data: entry.data, ts: Date.now() };
-            const json = JSON.stringify(refreshed);
-            localStorage.setItem(Storage._hsKey(ticker), json);
-            localStorage.setItem(Storage._hcKey(ticker), json);
+            const snapshot = await db.ref(`portfolio/history/${safeTicker}`).once('value');
+            const entry = snapshot.val();
+            if (entry && entry.data) {
+              const refreshed = { data: entry.data, ts: Date.now() };
+              const json = JSON.stringify(refreshed);
+              localStorage.setItem(Storage._hsKey(ticker), json);
+              localStorage.setItem(Storage._hcKey(ticker), json);
+            }
           } catch {}
         }
       }

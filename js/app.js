@@ -57,12 +57,17 @@ const App = {
     if (fill) fill.style.width = '50%';
 
     // ---- Step 2: Pull data from cloud (PUBLIC read, no auth) ----
+    // Timeout after 10s so the page renders even if Firebase is slow
     if (stepSync) stepSync.classList.add('active');
     if (loadMsg) loadMsg.textContent = 'Loading portfolio data from cloud...';
     let syncOk = false;
     if (firebaseOk) {
       try {
-        await FirebaseSync.init();
+        const syncPromise = FirebaseSync.init();
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Cloud sync timed out')), 10000)
+        );
+        await Promise.race([syncPromise, timeout]);
         syncOk = true;
       } catch (e) {
         console.error('[App] Firebase sync failed:', e.message);
