@@ -141,9 +141,6 @@ const MarketData = {
     }
   },
 
-  startKeepAlive() {},
-  stopKeepAlive() {},
-
   // --- Symbol Search ---
   async searchSymbol(query) {
     const cached = Storage.getCachedPrice(`search_${query}`);
@@ -167,6 +164,25 @@ const MarketData = {
     }
   },
 
+  // Extract quote data from a Yahoo chart response's meta + indicators
+  _parseQuote(ticker, res) {
+    const meta = res.meta;
+    const q = res.indicators?.quote?.[0] || {};
+    const last = meta.regularMarketPrice || 0;
+    const prevClose = meta.previousClose || meta.chartPreviousClose || 0;
+    return {
+      ticker: meta.symbol || ticker,
+      last,
+      open: q.open?.[0] || meta.regularMarketOpen || 0,
+      high: q.high?.[0] || meta.regularMarketDayHigh || 0,
+      low: q.low?.[0] || meta.regularMarketDayLow || 0,
+      close: prevClose,
+      volume: q.volume?.[0] || meta.regularMarketVolume || 0,
+      change: prevClose ? ((last - prevClose) / prevClose * 100) : 0,
+      timestamp: Date.now()
+    };
+  },
+
   // --- Live Quote ---
   async getQuote(ticker) {
     const cached = Storage.getCachedPrice(ticker);
@@ -181,24 +197,7 @@ const MarketData = {
         return Storage.getLastKnownPrice(ticker);
       }
 
-      const meta = res.meta;
-      const q = res.indicators?.quote?.[0] || {};
-
-      const last = meta.regularMarketPrice || 0;
-      const prevClose = meta.previousClose || meta.chartPreviousClose || 0;
-
-      const result = {
-        ticker: meta.symbol || ticker,
-        last,
-        open: q.open?.[0] || meta.regularMarketOpen || 0,
-        high: q.high?.[0] || meta.regularMarketDayHigh || 0,
-        low: q.low?.[0] || meta.regularMarketDayLow || 0,
-        close: prevClose,
-        volume: q.volume?.[0] || meta.regularMarketVolume || 0,
-        change: prevClose ? ((last - prevClose) / prevClose * 100) : 0,
-        timestamp: Date.now()
-      };
-
+      const result = this._parseQuote(ticker, res);
       Storage.setCachedPrice(ticker, result);
       return result;
     } catch (e) {
@@ -235,22 +234,8 @@ const MarketData = {
       }
 
       // Extract current quote from response meta (avoids separate quote API call)
-      const meta = res.meta;
-      if (meta) {
-        const last = meta.regularMarketPrice || 0;
-        const prevClose = meta.previousClose || meta.chartPreviousClose || 0;
-        const quoteData = {
-          ticker: meta.symbol || ticker,
-          last,
-          open: meta.regularMarketOpen || 0,
-          high: meta.regularMarketDayHigh || 0,
-          low: meta.regularMarketDayLow || 0,
-          close: prevClose,
-          volume: meta.regularMarketVolume || 0,
-          change: prevClose ? ((last - prevClose) / prevClose * 100) : 0,
-          timestamp: Date.now()
-        };
-        Storage.setCachedPrice(ticker, quoteData);
+      if (res.meta) {
+        Storage.setCachedPrice(ticker, this._parseQuote(ticker, res));
       }
 
       const timestamps = res.timestamp || [];
@@ -359,16 +344,9 @@ const MarketData = {
     return this.getHistory(bm.ticker, period);
   },
 
-  // Generic index history — works for any Yahoo Finance ticker (custom indexes)
-  async getIndexHistory(ticker, period = '1Y') {
-    const full = await this._fetchFullHistory(ticker);
-    return this._sliceByPeriod(full, period);
-  },
-
-  async getIndexHistoryByDate(ticker, startDate, endDate) {
-    const full = await this._fetchFullHistory(ticker);
-    return this._sliceByDateRange(full, startDate, endDate);
-  },
+  // Aliases — all history fetches go through the same path
+  getIndexHistory(ticker, period = '1Y') { return this.getHistory(ticker, period); },
+  getIndexHistoryByDate(ticker, startDate, endDate) { return this.getHistoryByDate(ticker, startDate, endDate); },
 
   async getBenchmarkHistoryByDate(benchmarkName, startDate, endDate) {
     const bm = this.benchmarkETFs[benchmarkName];
@@ -400,17 +378,10 @@ const MarketData = {
 
   // Status badge HTML
   getStatusBadge() {
-    const colors = {
-      disconnected: '#ef4444',
-      connecting: '#f59e0b',
-      connected: '#22c55e'
-    };
-    const labels = {
-      disconnected: 'Offline',
-      connecting: 'Connecting...',
-      connected: 'Yahoo Finance'
-    };
-    return `<span class="market-status" style="background:${colors[this.status]}20;color:${colors[this.status]};border:1px solid ${colors[this.status]}40">${labels[this.status]}</span>`;
+    return Utils.statusBadge(this.status,
+      { disconnected: '#ef4444', connecting: '#f59e0b', connected: '#22c55e' },
+      { disconnected: 'Offline', connecting: 'Connecting...', connected: 'Yahoo Finance' },
+      'market-status');
   }
 };
 

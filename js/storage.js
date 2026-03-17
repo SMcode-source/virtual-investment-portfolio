@@ -64,48 +64,37 @@ const Storage = {
     this.saveSettings(settings);
   },
 
+  // --- Generic list helpers ---
+  _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
+  _addItem(key, item) {
+    const list = this.get(key, []);
+    item.id = item.id || this._uid();
+    list.push(item);
+    this.set(key, list);
+    return item;
+  },
+  _updateItem(key, id, updates) {
+    const list = this.get(key, []);
+    const idx = list.findIndex(e => e.id === id);
+    if (idx >= 0) { Object.assign(list[idx], updates); this.set(key, list); }
+  },
+
   // --- Trades ---
   getTrades() { return this.get('trades', []); },
   saveTrades(t) { this.set('trades', t); },
-  addTrade(trade) {
-    const trades = this.getTrades();
-    trade.id = trade.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    trades.push(trade);
-    this.saveTrades(trades);
-    return trade;
-  },
+  addTrade(trade) { return this._addItem('trades', trade); },
 
   // --- Journal ---
   getJournalEntries() { return this.get('journal', []); },
   saveJournalEntries(j) { this.set('journal', j); },
-  addJournalEntry(entry) {
-    const entries = this.getJournalEntries();
-    entry.id = entry.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    entries.push(entry);
-    this.saveJournalEntries(entries);
-    return entry;
-  },
-  updateJournalEntry(id, updates) {
-    const entries = this.getJournalEntries();
-    const idx = entries.findIndex(e => e.id === id);
-    if (idx >= 0) { Object.assign(entries[idx], updates); this.saveJournalEntries(entries); }
-  },
+  addJournalEntry(entry) { return this._addItem('journal', entry); },
+  updateJournalEntry(id, updates) { this._updateItem('journal', id, updates); },
 
   // --- Think Pieces ---
   getThinkPieces() { return this.get('thinkPieces', []); },
   saveThinkPieces(t) { this.set('thinkPieces', t); },
-  addThinkPiece(piece) {
-    const pieces = this.getThinkPieces();
-    piece.id = piece.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    pieces.push(piece);
-    this.saveThinkPieces(pieces);
-    return piece;
-  },
-  updateThinkPiece(id, updates) {
-    const pieces = this.getThinkPieces();
-    const idx = pieces.findIndex(p => p.id === id);
-    if (idx >= 0) { Object.assign(pieces[idx], updates); this.saveThinkPieces(pieces); }
-  },
+  addThinkPiece(piece) { return this._addItem('thinkPieces', piece); },
+  updateThinkPiece(id, updates) { this._updateItem('thinkPieces', id, updates); },
 
   // --- Watchlist ---
   getWatchlist() { return this.get('watchlist', []); },
@@ -114,13 +103,7 @@ const Storage = {
   // --- Snapshots ---
   getSnapshots() { return this.get('snapshots', []); },
   saveSnapshots(s) { this.set('snapshots', s); },
-  addSnapshot(snap) {
-    const snaps = this.getSnapshots();
-    snap.id = snap.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    snaps.push(snap);
-    this.saveSnapshots(snaps);
-    return snap;
-  },
+  addSnapshot(snap) { return this._addItem('snapshots', snap); },
 
   // --- Price Cache (15min fresh TTL, persistent fallback) ---
   getCachedPrice(ticker) {
@@ -245,20 +228,6 @@ const Storage = {
     return { holdings: Object.values(holdings), cash };
   },
 
-  // Compute cash balance after each trade
-  computeCashAfterTrade(tradeIndex) {
-    const trades = this.getTrades();
-    const settings = this.getSettings();
-    let cash = settings.startingCash;
-    const sorted = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
-    for (let i = 0; i <= tradeIndex && i < sorted.length; i++) {
-      const t = sorted[i];
-      const value = t.shares * t.price + (t.commission || 0);
-      if (t.type === 'BUY') cash -= value;
-      else cash += t.shares * t.price - (t.commission || 0);
-    }
-    return cash;
-  }
 };
 
 window.Storage = Storage;

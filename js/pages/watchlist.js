@@ -67,13 +67,13 @@ const Watchlist = {
   }, 300),
 
   _selectedName: '',
-  
+
 
   selectFromSearch(ticker, name) {
     document.getElementById('wl-ticker').value = ticker;
     document.getElementById('wl-results').style.display = 'none';
     this._selectedName = name;
-    
+
   },
 
   addTicker() {
@@ -87,14 +87,14 @@ const Watchlist = {
     items.push({
       ticker,
       name: this._selectedName || ticker,
-      
+
       alertPrice: null,
       alertTriggered: false,
       addedDate: new Date().toISOString()
     });
     Storage.saveWatchlist(items);
     this._selectedName = '';
-    
+
     this.render(document.getElementById('page-content'));
   },
 

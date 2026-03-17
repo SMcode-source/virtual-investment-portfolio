@@ -30,14 +30,19 @@ const FirebaseSync = {
   // All standard keys (used for full push/pull operations)
   get ALL_KEYS() { return [...this.SYNC_KEYS, ...this.CACHE_KEYS]; },
 
-  // Firebase disallows . # $ / [ ] in keys — encode them for storage, decode on read
+  // Firebase disallows . # $ / [ ] in keys — encode/decode for storage
+  _UNSAFE_CHARS: [[/\./g, '%2E'], [/#/g, '%23'], [/\$/g, '%24'], [/\//g, '%2F'], [/\[/g, '%5B'], [/\]/g, '%5D']],
+  _SAFE_CHARS:   [[/%2E/g, '.'], [/%23/g, '#'], [/%24/g, '$'], [/%2F/g, '/'], [/%5B/g, '['], [/%5D/g, ']']],
+
+  _encodeKey(str) { return this._UNSAFE_CHARS.reduce((s, [re, rep]) => s.replace(re, rep), str); },
+  _decodeKey(str) { return this._SAFE_CHARS.reduce((s, [re, rep]) => s.replace(re, rep), str); },
+
   _sanitizeKeys(obj) {
     if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
     if (Array.isArray(obj)) return obj.map(v => this._sanitizeKeys(v));
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
-      const safeKey = k.replace(/\./g, '%2E').replace(/#/g, '%23').replace(/\$/g, '%24').replace(/\//g, '%2F').replace(/\[/g, '%5B').replace(/\]/g, '%5D');
-      out[safeKey] = this._sanitizeKeys(v);
+      out[this._encodeKey(k)] = this._sanitizeKeys(v);
     }
     return out;
   },
@@ -47,8 +52,7 @@ const FirebaseSync = {
     if (Array.isArray(obj)) return obj.map(v => this._restoreKeys(v));
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
-      const origKey = k.replace(/%2E/g, '.').replace(/%23/g, '#').replace(/%24/g, '$').replace(/%2F/g, '/').replace(/%5B/g, '[').replace(/%5D/g, ']');
-      out[origKey] = this._restoreKeys(v);
+      out[this._decodeKey(k)] = this._restoreKeys(v);
     }
     return out;
   },
@@ -212,6 +216,12 @@ const FirebaseSync = {
   // Each ticker is a separate small read to avoid downloading all history at once.
   // Refreshes the timestamp to Date.now() so cloud data is treated as valid cache.
   // If the data is stale (missing recent dates), it still displays — Yahoo fills gaps later.
+  _saveHistoryToLocal(ticker, entry) {
+    const json = JSON.stringify({ data: entry.data, ts: Date.now() });
+    localStorage.setItem(Storage._hsKey(ticker), json);
+    localStorage.setItem(Storage._hcKey(ticker), json);
+  },
+
   async _pullHistory() {
     const db = FirebaseApp.db;
     if (!db) return;
@@ -222,36 +232,23 @@ const FirebaseSync = {
         const snapshot = await db.ref(`portfolio/history/${safeTicker}`).once('value');
         const entry = snapshot.val();
         if (entry && entry.data) {
-          // Refresh timestamp so this data is treated as valid cache
-          const refreshed = { data: entry.data, ts: Date.now() };
-          const json = JSON.stringify(refreshed);
-          localStorage.setItem(Storage._hsKey(ticker), json);
-          localStorage.setItem(Storage._hcKey(ticker), json);
+          try {
+            this._saveHistoryToLocal(ticker, entry);
+          } catch (e) {
+            if (e.name === 'QuotaExceededError') {
+              Storage._clearHistoryCaches();
+              try { this._saveHistoryToLocal(ticker, entry); } catch {}
+            }
+          }
           console.log(`[Sync] Restored ${entry.data.length} bars for ${ticker} from cloud`);
         }
       } catch (e) {
         console.warn(`[Sync] Failed to pull history for ${ticker}:`, e.message);
-        // On quota overflow, clear old caches and retry this ticker
-        if (e.name === 'QuotaExceededError') {
-          Storage._clearHistoryCaches();
-          try {
-            const snapshot = await db.ref(`portfolio/history/${safeTicker}`).once('value');
-            const entry = snapshot.val();
-            if (entry && entry.data) {
-              const refreshed = { data: entry.data, ts: Date.now() };
-              const json = JSON.stringify(refreshed);
-              localStorage.setItem(Storage._hsKey(ticker), json);
-              localStorage.setItem(Storage._hcKey(ticker), json);
-            }
-          } catch {}
-        }
       }
     }
   },
 
-  _sanitizeTicker(ticker) {
-    return ticker.replace(/\./g, '%2E').replace(/#/g, '%23').replace(/\$/g, '%24').replace(/\//g, '%2F').replace(/\[/g, '%5B').replace(/\]/g, '%5D');
-  },
+  _sanitizeTicker(ticker) { return this._encodeKey(ticker); },
 
   // --- Write a single key to Firebase (REQUIRES AUTH) ---
   async syncKey(key) {
@@ -394,20 +391,10 @@ const FirebaseSync = {
   },
 
   getStatusBadge() {
-    const colors = {
-      offline: '#8b90a0',
-      syncing: '#d97706',
-      synced: '#16a34a',
-      error: '#dc2626'
-    };
-    const labels = {
-      offline: 'Local Only',
-      syncing: 'Syncing...',
-      synced: 'Cloud Synced',
-      error: 'Sync Error'
-    };
-    const color = colors[this._syncStatus];
-    return `<span class="sync-status" style="background:${color}20;color:${color};border:1px solid ${color}40;padding:2px 8px;border-radius:12px;font-size:0.75rem">${labels[this._syncStatus]}</span>`;
+    return Utils.statusBadge(this._syncStatus,
+      { offline: '#8b90a0', syncing: '#d97706', synced: '#16a34a', error: '#dc2626' },
+      { offline: 'Local Only', syncing: 'Syncing...', synced: 'Cloud Synced', error: 'Sync Error' },
+      'sync-status');
   }
 };
 

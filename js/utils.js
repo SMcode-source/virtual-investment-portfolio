@@ -74,7 +74,7 @@ const Utils = {
     const excessRet = r.annReturn.toFixed(2);
     const vol = r.annVol.toFixed(2);
     const pts = r.dataPoints || 0;
-    return `Sharpe = Ann. Excess Return \u00F7 Ann. Volatility\n= ${excessRet}% \u00F7 ${vol}%\n= ${r.sharpe.toFixed(2)}\n\nAnn. Excess Return: ${excessRet}%\nAnn. Volatility: ${vol}%\nRisk-Free Rate (Rf): ${rf}%\nData Points: ${pts} days`;
+    return `Sharpe = Ann. Excess Return ÷ Ann. Volatility\n= ${excessRet}% ÷ ${vol}%\n= ${r.sharpe.toFixed(2)}\n\nAnn. Excess Return: ${excessRet}%\nAnn. Volatility: ${vol}%\nRisk-Free Rate (Rf): ${rf}%\nData Points: ${pts} days`;
   },
 
   // Sharpe rating
@@ -151,19 +151,11 @@ const Utils = {
     }
   },
 
-  periodToRange(period) {
-    const map = { '1M': '1M', '3M': '3M', '6M': '6M', 'YTD': '1Y', '1Y': '1Y', '2Y': '2Y', '5Y': '5Y', 'All': '10Y' };
-    return map[period] || '1Y';
-  },
-
   // --- Debounce ---
   debounce(fn, ms = 300) {
     let timer;
     return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
   },
-
-  // Generate unique ID
-  uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
 
   // Star rating HTML
   stars(n, max = 5) {
@@ -179,6 +171,13 @@ const Utils = {
     const colors = { Bullish: '#22c55e', Neutral: '#f59e0b', Bearish: '#ef4444' };
     const c = colors[s] || '#8b90a0';
     return `<span class="badge" style="background:${c}20;color:${c};border:1px solid ${c}40">${s}</span>`;
+  },
+
+  // Status badge helper (used by FirebaseSync and MarketData)
+  statusBadge(status, colorMap, labelMap, className) {
+    const color = colorMap[status] || '#8b90a0';
+    const label = labelMap[status] || status;
+    return `<span class="${className}" style="background:${color}20;color:${color};border:1px solid ${color}40;padding:2px 8px;border-radius:12px;font-size:0.75rem">${label}</span>`;
   },
 
   // Escape HTML
