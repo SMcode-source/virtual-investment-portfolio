@@ -25,6 +25,13 @@ const Dashboard = {
   },
 
   async render(container) {
+    // Destroy old Chart.js instance BEFORE replacing innerHTML
+    // (prevents Chart.js from operating on a detached canvas)
+    if (this.performanceChart) {
+      try { this.performanceChart.destroy(); } catch (e) { /* canvas already detached */ }
+      this.performanceChart = null;
+    }
+
     this._initCustomVisibility();
     const settings = Storage.getSettings();
     const customIndexes = settings.customIndexes || [];
@@ -189,9 +196,9 @@ const Dashboard = {
       </div>
     `;
 
-    // Load live data
-    this.loadHoldingsWithPrices(holdings, cash);
-    this.loadPerformanceChart();
+    // Load live data (fire-and-forget with error handling)
+    this.loadHoldingsWithPrices(holdings, cash).catch(e => console.error('[Dashboard] Holdings load error:', e));
+    this.loadPerformanceChart().catch(e => console.error('[Dashboard] Chart load error:', e));
   },
 
   // --- Custom Index Search ---
@@ -289,16 +296,14 @@ const Dashboard = {
     const tbody = document.getElementById('holdings-body');
     if (!holdings.length) return;
 
-    // Try getting live prices from MarketData
+    // Phase 1: Instantly display with cached/persistent prices (no API calls)
     let totalMarketValue = cash;
     const rows = [];
 
     for (const h of holdings) {
-      let currentPrice = h.avgCost; // fallback
-      try {
-        const quote = await MarketData.getQuote(h.ticker);
-        if (quote && quote.last) currentPrice = quote.last;
-      } catch {}
+      // Use last known price (persistent cache, never expires) for instant display
+      const cached = Storage.getLastKnownPrice(h.ticker);
+      let currentPrice = (cached && cached.last) ? cached.last : h.avgCost;
 
       const marketValue = h.shares * currentPrice;
       const pl = (currentPrice - h.avgCost) * h.shares;
@@ -353,6 +358,92 @@ const Dashboard = {
     }
 
     // Render allocation bars
+    this.renderAllocationBars(rows, totalValue);
+
+    // Phase 2: Refresh any stale prices in background (if 15-min cache expired)
+    // This updates the table in-place without re-rendering the whole page
+    let needsRefresh = false;
+    for (const h of holdings) {
+      if (!Storage.getCachedPrice(h.ticker)) { needsRefresh = true; break; }
+    }
+    if (needsRefresh) {
+      this._refreshHoldingPrices(holdings, cash).catch(() => {});
+    }
+  },
+
+  async _refreshHoldingPrices(holdings, cash) {
+    const tbody = document.getElementById('holdings-body');
+    if (!tbody) return;
+
+    let totalMarketValue = cash;
+    const rows = [];
+
+    for (const h of holdings) {
+      let currentPrice = h.avgCost;
+      try {
+        const quote = await MarketData.getQuote(h.ticker);
+        if (quote && quote.last) currentPrice = quote.last;
+        else {
+          const cached = Storage.getLastKnownPrice(h.ticker);
+          if (cached && cached.last) currentPrice = cached.last;
+        }
+      } catch {
+        const cached = Storage.getLastKnownPrice(h.ticker);
+        if (cached && cached.last) currentPrice = cached.last;
+      }
+
+      const marketValue = h.shares * currentPrice;
+      const pl = (currentPrice - h.avgCost) * h.shares;
+      const plPct = h.avgCost > 0 ? ((currentPrice - h.avgCost) / h.avgCost * 100) : 0;
+      totalMarketValue += marketValue;
+      rows.push({ ...h, currentPrice, marketValue, pl, plPct });
+    }
+
+    // Re-check that we're still on the dashboard (user might have navigated away)
+    if (!document.getElementById('holdings-body')) return;
+
+    const settings = Storage.getSettings();
+    const totalValue = totalMarketValue;
+    const totalReturn = ((totalValue - settings.startingCash) / settings.startingCash * 100);
+
+    const kpiVal = document.getElementById('kpi-total-value');
+    const kpiReturn = document.getElementById('kpi-total-return');
+    const kpiCashPct = document.getElementById('kpi-cash-pct');
+
+    if (kpiVal) kpiVal.textContent = Utils.formatCurrency(totalValue);
+    if (kpiReturn) {
+      kpiReturn.textContent = Utils.formatPercent(totalReturn);
+      kpiReturn.className = `kpi-value ${Utils.plClass(totalReturn)}`;
+    }
+    if (kpiCashPct) kpiCashPct.textContent = `${(cash / totalValue * 100).toFixed(1)}% of portfolio`;
+
+    // Update table rows
+    const newTbody = document.getElementById('holdings-body');
+    if (newTbody) {
+      newTbody.innerHTML = rows.map(r => {
+        const weight = (r.marketValue / totalValue * 100);
+        return `<tr>
+          <td><strong>${Utils.escHtml(r.ticker)}</strong></td>
+          <td>${Utils.escHtml(r.name)}</td>
+          <td>${Utils.escHtml(r.sector)}</td>
+          <td>${Utils.getFlag(r.country)} ${Utils.escHtml(r.country)}</td>
+          <td class="text-right">${Utils.formatNumber(r.shares)}</td>
+          <td class="text-right">${Utils.formatCurrency(r.avgCost)}</td>
+          <td class="text-right">${Utils.formatCurrency(r.currentPrice)}</td>
+          <td class="text-right">${Utils.formatCurrency(r.marketValue)}</td>
+          <td class="text-right ${Utils.plClass(r.pl)}">
+            ${Utils.formatCurrency(r.pl)} (${Utils.formatPercent(r.plPct)})
+          </td>
+          <td>
+            <div class="weight-bar">
+              <div class="weight-bar-track"><div class="weight-bar-fill" style="width:${Math.min(weight * 2, 100)}%"></div></div>
+              <span class="weight-bar-label">${weight.toFixed(1)}%</span>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
     this.renderAllocationBars(rows, totalValue);
   },
 
@@ -447,6 +538,8 @@ const Dashboard = {
       ctx.font = '14px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Waiting for Yahoo Finance data...', canvas.width / 2, canvas.height / 2);
+      // Still load the Sharpe table even without chart data
+      this.loadSharpeTable(benchmarks).catch(() => {});
       return;
     }
 
@@ -494,7 +587,14 @@ const Dashboard = {
       }
     });
 
-    if (this.performanceChart) this.performanceChart.destroy();
+    // Destroy old chart safely (canvas may already be detached from DOM)
+    if (this.performanceChart) {
+      try { this.performanceChart.destroy(); } catch (e) { /* canvas detached */ }
+      this.performanceChart = null;
+    }
+
+    // Verify canvas is still in DOM (user might have navigated away during async)
+    if (!document.getElementById('performance-chart')) return;
 
     this.performanceChart = new Chart(canvas, {
       type: 'line',
@@ -539,7 +639,7 @@ const Dashboard = {
     });
 
     // Load Sharpe table
-    this.loadSharpeTable(benchmarks);
+    this.loadSharpeTable(benchmarks).catch(e => console.error('[Dashboard] Sharpe table error:', e));
   },
 
   async loadSharpeTable(benchmarks) {
