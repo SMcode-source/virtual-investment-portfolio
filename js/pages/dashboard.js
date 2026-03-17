@@ -6,6 +6,7 @@ const Dashboard = {
   sharpeWindow: 365,
   visibleSeries: { portfolio: true, sp500: true, nasdaq: true, ftse: true, msci: true },
   _searchTimeout: null,
+  _chartGeneration: 0, // generation counter to prevent stale async chart renders
 
   // Ensure custom index visibility keys are initialized
   _initCustomVisibility() {
@@ -261,12 +262,22 @@ const Dashboard = {
 
   setPeriod(p) {
     this.selectedPeriod = p;
-    this.render(document.getElementById('page-content'));
+    // Update button states without full re-render (avoids race conditions)
+    document.querySelectorAll('#period-btns .btn').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent.trim() === p);
+    });
+    // Just reload the chart + Sharpe table with the new period
+    this.loadPerformanceChart();
   },
 
   setSharpeWindow(w) {
     this.sharpeWindow = w;
-    this.render(document.getElementById('page-content'));
+    // Update button states without full re-render
+    document.querySelectorAll('#sharpe-window-btns .btn').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent.trim() === w + 'd');
+    });
+    // Just reload the chart + Sharpe table
+    this.loadPerformanceChart();
   },
 
   toggleSeries(key) {
@@ -390,6 +401,9 @@ const Dashboard = {
     const canvas = document.getElementById('performance-chart');
     if (!canvas) return;
 
+    // Generation counter: if a newer call starts, this one bails out after awaits
+    const gen = ++this._chartGeneration;
+
     const customIndexes = Storage.getCustomIndexes();
 
     // Default benchmarks
@@ -420,6 +434,9 @@ const Dashboard = {
       }
     });
     await Promise.all(fetches);
+
+    // Bail out if a newer loadPerformanceChart call has started
+    if (gen !== this._chartGeneration) return;
 
     // Align all series to a common date axis (forward-fill missing dates)
     const { labels, aligned } = MarketData.alignSeries(rawSeries);

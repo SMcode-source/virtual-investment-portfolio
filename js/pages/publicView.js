@@ -7,6 +7,7 @@ const PublicView = {
   customDateStart: '',
   customDateEnd: '',
   _searchTimeout: null,
+  _chartGeneration: 0,
 
   // Ensure custom index visibility keys are initialized
   _initCustomVisibility() {
@@ -393,6 +394,8 @@ const PublicView = {
     const canvas = document.getElementById('pub-perf-chart');
     if (!canvas) return;
 
+    const gen = ++this._chartGeneration;
+
     const seriesConfig = {
       sp500:  { name: 'S&P 500',    bmKey: 'S&P 500',    color: '#3b82f6' },
       nasdaq: { name: 'NASDAQ 100', bmKey: 'NASDAQ 100', color: '#f59e0b' },
@@ -427,6 +430,9 @@ const PublicView = {
       }
     });
     await Promise.all(fetches);
+
+    // Bail out if a newer loadPerformanceChart call has started
+    if (gen !== this._chartGeneration) return;
 
     // Align all series to a common date axis (forward-fill missing dates)
     const { labels, aligned } = MarketData.alignSeries(rawSeries);
