@@ -1,6 +1,7 @@
 // yahooRefresh.js — Background Yahoo Finance data refresh
-// Runs independently of page navigation. Fetches all quotes and history
-// in a single pass after initial Firebase data is loaded.
+// Runs independently of page navigation. Makes ONE "All" API call per ticker
+// which returns full price history + current quote from response metadata.
+// Shorter periods (1M, 3M, 6M, YTD) are sliced from the full dataset.
 
 const YahooRefresh = {
   _running: false,
@@ -17,10 +18,9 @@ const YahooRefresh = {
 
   /**
    * Run a full Yahoo Finance refresh in background.
-   * 1. Check Yahoo connection
-   * 2. Fetch live quotes for all holdings
-   * 3. Fetch full history for all benchmark tickers + holding tickers
-   * Does NOT block page rendering. Updates localStorage as data arrives.
+   * Single pass: fetch full "All" history for every ticker (benchmarks + holdings).
+   * The history response also contains the current quote in its metadata,
+   * so no separate quote API calls are needed.
    */
   async run() {
     if (this._running) return;
@@ -28,16 +28,6 @@ const YahooRefresh = {
     this._aborted = false;
 
     console.log('[YahooRefresh] Starting background refresh...');
-
-    // Phase 1: Check Yahoo connection
-    this._setProgress(0, 1, '', 'Connecting to Yahoo Finance...');
-    const connected = await MarketData.checkConnection();
-    if (!connected) {
-      console.warn('[YahooRefresh] Yahoo Finance not reachable — skipping refresh');
-      this._running = false;
-      this._setProgress(0, 0, '', 'Yahoo Finance offline');
-      return;
-    }
 
     // Gather all tickers we need to refresh
     const { holdings } = Storage.computeHoldings();
@@ -48,52 +38,53 @@ const YahooRefresh = {
     // Default benchmark tickers
     const benchmarkTickers = ['SPY', 'QQQ', 'ISF.L', 'URTH'];
 
-    // Build unique list of all tickers for history refresh
-    const allHistoryTickers = [...new Set([
+    // Build unique list of all tickers — one API call each
+    const allTickers = [...new Set([
       ...benchmarkTickers,
       ...customTickers,
       ...holdingTickers
     ])];
 
-    // Total work: quotes for holdings + history for all tickers
-    const totalWork = holdingTickers.length + allHistoryTickers.length;
+    const totalWork = allTickers.length;
     let done = 0;
+    let anySuccess = false;
 
-    // Phase 2: Fetch live quotes for all holdings
-    this._setProgress(done, totalWork, '', 'Fetching live quotes...');
-    for (const ticker of holdingTickers) {
+    // Single pass: fetch full "All" history per ticker (also caches quote from meta)
+    this._setProgress(0, totalWork, '', 'Refreshing from Yahoo Finance...');
+    for (const ticker of allTickers) {
       if (this._aborted) break;
-      this._setProgress(done, totalWork, ticker, 'Fetching quote');
+      this._setProgress(done, totalWork, ticker, 'Fetching');
       try {
-        // Clear the 15min cache so we get a fresh quote
+        // Clear caches so we get fresh data
+        try { localStorage.removeItem(Storage._hcKey(ticker)); } catch {}
         const cache = Storage.get('priceCache', {});
         delete cache[ticker];
         Storage.set('priceCache', cache);
-        await MarketData.getQuote(ticker);
-      } catch (e) {
-        console.warn(`[YahooRefresh] Quote failed for ${ticker}:`, e.message);
-      }
-      done++;
-      this._setProgress(done, totalWork, ticker, 'Fetching quote');
-    }
 
-    // Phase 3: Fetch full history for benchmarks + holdings
-    this._setProgress(done, totalWork, '', 'Fetching price history...');
-    for (const ticker of allHistoryTickers) {
-      if (this._aborted) break;
-      this._setProgress(done, totalWork, ticker, 'Fetching history');
-      try {
-        // Clear the 1hr history cache so we get fresh data
-        try { localStorage.removeItem(Storage._hcKey(ticker)); } catch {}
         await MarketData._fetchFullHistory(ticker);
+        anySuccess = true;
       } catch (e) {
-        console.warn(`[YahooRefresh] History failed for ${ticker}:`, e.message);
+        console.warn(`[YahooRefresh] Failed for ${ticker}:`, e.message);
       }
       done++;
-      this._setProgress(done, totalWork, ticker, 'Fetching history');
+      this._setProgress(done, totalWork, ticker, 'Fetching');
     }
 
-    // Done — push updated caches to Firebase if authenticated
+    // If no ticker succeeded, mark as offline
+    if (!anySuccess && !this._aborted) {
+      console.warn('[YahooRefresh] All tickers failed — Yahoo Finance likely offline');
+      this._running = false;
+      MarketData.setStatus('disconnected');
+      this._setProgress(0, 0, '', 'Yahoo Finance offline');
+      return;
+    }
+
+    // Mark Yahoo as connected if we got data
+    if (anySuccess) {
+      MarketData.setStatus('connected');
+    }
+
+    // Push updated caches to Firebase if authenticated
     if (!this._aborted && FirebaseSync.isFirebaseAuthenticated()) {
       this._setProgress(done, totalWork, '', 'Syncing to cloud...');
       try {

@@ -12,9 +12,7 @@ const MarketData = {
   _lastCallTime: 0,
   _minDelay: 750, // 0.75s between Yahoo API calls
   _queue: Promise.resolve(), // serialization queue for rate limiting
-  _disconnectTimer: null,
   _reconnectInterval: null,
-  _DISCONNECT_FALLBACK_MS: 2 * 1000, // 2 seconds
   _RECONNECT_CHECK_MS: 30 * 1000, // check every 30s for reconnection
   _MAX_RETRIES: 2, // retry failed requests up to 2 times
 
@@ -32,28 +30,6 @@ const MarketData = {
       } else if (s === 'connected') {
         this._stopReconnectPolling();
       }
-    }
-  },
-
-  _startDisconnectFallback() {
-    this._clearDisconnectFallback();
-    this._disconnectTimer = setTimeout(async () => {
-      console.log('[MarketData] Yahoo disconnected for 2s — pulling data from Firebase');
-      if (typeof FirebaseSync !== 'undefined' && FirebaseApp.ready) {
-        try {
-          await FirebaseSync.forcePull();
-          console.log('[MarketData] Firebase fallback pull complete');
-        } catch (e) {
-          console.error('[MarketData] Firebase fallback pull failed:', e.message);
-        }
-      }
-    }, this._DISCONNECT_FALLBACK_MS);
-  },
-
-  _clearDisconnectFallback() {
-    if (this._disconnectTimer) {
-      clearTimeout(this._disconnectTimer);
-      this._disconnectTimer = null;
     }
   },
 
@@ -231,23 +207,46 @@ const MarketData = {
     }
   },
 
-  // --- Historical Data (fetch full 15yr once, slice by period) ---
+  // --- Historical Data (fetch ALL-TIME once per ticker, slice by period) ---
+  // This is the ONLY Yahoo API call per ticker. It returns the complete price
+  // history from the ticker's IPO date AND current quote data (from the response
+  // meta), so no separate quote fetch is needed.
+  // All shorter periods (1M, 3M, 6M, YTD, 1Y, 2Y, 5Y) are sliced from this.
 
-  // Fetch full history for a ticker (cached for 1hr)
+  // Fetch all-time history for a ticker (cached for 1hr). Also caches current quote.
   async _fetchFullHistory(ticker) {
     const cached = Storage.getCachedHistory(ticker);
     if (cached) return cached;
 
     try {
-      // Fetch 15 years of daily data using period1/period2 timestamps
+      // Fetch ALL available history (period1=0 = earliest available date)
       const now = Math.floor(Date.now() / 1000);
-      const start = now - Math.floor(15 * 365.25 * 86400);
+      const start = 0;
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${start}&period2=${now}&interval=1d`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
       if (!res) {
         console.warn('[MarketData] No history result for', ticker, '— using fallback');
         return Storage.getLastKnownHistory(ticker) || [];
+      }
+
+      // Extract current quote from response meta (avoids separate quote API call)
+      const meta = res.meta;
+      if (meta) {
+        const last = meta.regularMarketPrice || 0;
+        const prevClose = meta.previousClose || meta.chartPreviousClose || 0;
+        const quoteData = {
+          ticker: meta.symbol || ticker,
+          last,
+          open: meta.regularMarketOpen || 0,
+          high: meta.regularMarketDayHigh || 0,
+          low: meta.regularMarketDayLow || 0,
+          close: prevClose,
+          volume: meta.regularMarketVolume || 0,
+          change: prevClose ? ((last - prevClose) / prevClose * 100) : 0,
+          timestamp: Date.now()
+        };
+        Storage.setCachedPrice(ticker, quoteData);
       }
 
       const timestamps = res.timestamp || [];
@@ -274,7 +273,7 @@ const MarketData = {
 
       if (history.length) {
         Storage.setCachedHistory(ticker, history);
-        console.log(`[MarketData] Cached ${history.length} bars for ${ticker} (${history[0].date} → ${history[history.length - 1].date})`);
+        console.log(`[MarketData] Cached ${history.length} bars + quote for ${ticker} (${history[0].date} → ${history[history.length - 1].date})`);
       } else {
         console.warn('[MarketData] History fetch returned 0 valid bars for', ticker);
       }
