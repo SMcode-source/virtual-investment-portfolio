@@ -130,14 +130,10 @@ const App = {
 
   // --- Yahoo refresh progress UI (persistent banner above page content) ---
   _setupYahooRefreshUI() {
-    let banner = document.getElementById('yahoo-refresh-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'yahoo-refresh-banner';
-      banner.className = 'yahoo-refresh-banner';
-      const main = document.querySelector('.main-content');
-      if (main) main.insertBefore(banner, main.firstChild);
-    }
+    // Banner element lives in index.html, outside #page-content,
+    // so it survives page re-renders.
+    const banner = document.getElementById('yahoo-refresh-banner');
+    if (!banner) return;
 
     YahooRefresh.onProgress((p) => {
       if (!p.running && p.phase === 'Complete') {
@@ -251,6 +247,8 @@ const App = {
     if (hamburger) hamburger.style.display = page === 'login' ? 'none' : '';
     const main = document.querySelector('.main-content');
     if (main) main.style.marginLeft = page === 'login' ? '0' : '';
+    const banner = document.getElementById('yahoo-refresh-banner');
+    if (banner) banner.style.display = page === 'login' ? 'none' : '';
 
     if (!this._renderedPages.size) {
       content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
