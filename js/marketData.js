@@ -2,10 +2,10 @@
 const MarketData = {
   // Multiple CORS proxies for resilience — if one fails, try the next
   corsProxies: [
-    'https://corsproxy.io/?url=',
-    'https://api.allorigins.win/raw?url='
+    'https://api.allorigins.win/raw?url=',
+    'https://api.allorigins.win/get?url='  // fallback: returns JSON wrapper {contents:"..."}
   ],
-  corsProxy: 'https://corsproxy.io/?url=', // current active proxy
+  corsProxy: 'https://api.allorigins.win/raw?url=', // current active proxy
   _proxyIndex: 0,
   status: 'disconnected', // disconnected | connecting | connected
   listeners: [],
@@ -95,8 +95,14 @@ const MarketData = {
       const text = await resp.text();
       // Guard against CORS proxy returning non-JSON error pages
       try {
-        return JSON.parse(text);
-      } catch {
+        const parsed = JSON.parse(text);
+        // Handle allorigins /get endpoint which wraps response in {contents: "..."}
+        if (parsed.contents && typeof parsed.contents === 'string') {
+          try { return JSON.parse(parsed.contents); } catch { throw new Error('Invalid JSON in allorigins wrapper'); }
+        }
+        return parsed;
+      } catch (e) {
+        if (e.message.includes('allorigins')) throw e;
         throw new Error('Non-JSON response from proxy');
       }
     } catch (e) {
@@ -212,7 +218,8 @@ const MarketData = {
   // meta), so no separate quote fetch is needed.
   // All shorter periods (1M, 3M, 6M, YTD, 1Y, 2Y, 5Y) are sliced from this.
 
-  // Fetch all-time history for a ticker (cached for 1hr). Also caches current quote.
+  // Fetch long-range history for a ticker (cached for 1hr). Also caches current quote.
+  // Uses 10-year range instead of all-time to keep response size within CORS proxy limits.
   // Pass skipCache=true to force a fresh fetch WITHOUT deleting existing data first.
   // If the fresh fetch fails, the old cached data remains available.
   async _fetchFullHistory(ticker, skipCache = false) {
@@ -222,9 +229,9 @@ const MarketData = {
     }
 
     try {
-      // Fetch ALL available history (period1=0 = earliest available date)
+      // Fetch 10 years of history (keeps response size manageable for CORS proxies)
       const now = Math.floor(Date.now() / 1000);
-      const start = 0;
+      const start = now - (10 * 365 * 86400); // 10 years ago
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${start}&period2=${now}&interval=1d`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
