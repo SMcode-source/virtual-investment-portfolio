@@ -1,11 +1,13 @@
 // marketData.js — Yahoo Finance direct integration (browser-side via CORS proxy)
 const MarketData = {
-  // Multiple CORS proxies for resilience — if one fails, try the next
+  // CORS proxies — Cloudflare Worker (primary), allorigins (fallback)
+  // To set up your own worker: deploy cors-worker.js to Cloudflare Workers
+  // and replace the URL below with your worker's URL.
   corsProxies: [
-    'https://api.allorigins.win/raw?url=',
-    'https://api.allorigins.win/get?url='  // fallback: returns JSON wrapper {contents:"..."}
+    'https://yahoo-finance-proxy.smcode-source.workers.dev/?url=',  // Your Cloudflare Worker
+    'https://api.allorigins.win/raw?url='                           // Public fallback
   ],
-  corsProxy: 'https://api.allorigins.win/raw?url=', // current active proxy
+  corsProxy: 'https://yahoo-finance-proxy.smcode-source.workers.dev/?url=', // current active proxy
   _proxyIndex: 0,
   status: 'disconnected', // disconnected | connecting | connected
   listeners: [],
@@ -218,8 +220,7 @@ const MarketData = {
   // meta), so no separate quote fetch is needed.
   // All shorter periods (1M, 3M, 6M, YTD, 1Y, 2Y, 5Y) are sliced from this.
 
-  // Fetch long-range history for a ticker (cached for 1hr). Also caches current quote.
-  // Uses 10-year range instead of all-time to keep response size within CORS proxy limits.
+  // Fetch all-time history for a ticker (cached for 1hr). Also caches current quote.
   // Pass skipCache=true to force a fresh fetch WITHOUT deleting existing data first.
   // If the fresh fetch fails, the old cached data remains available.
   async _fetchFullHistory(ticker, skipCache = false) {
@@ -229,9 +230,9 @@ const MarketData = {
     }
 
     try {
-      // Fetch 10 years of history (keeps response size manageable for CORS proxies)
+      // Fetch ALL available history (period1=0 = earliest available date)
       const now = Math.floor(Date.now() / 1000);
-      const start = now - (10 * 365 * 86400); // 10 years ago
+      const start = 0;
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${start}&period2=${now}&interval=1d`;
       const json = await this._yf(url);
       const res = json.chart?.result?.[0];
