@@ -63,7 +63,9 @@ const FirebaseSync = {
     }
   },
 
-  // --- Initialize: pull cloud data (publicly readable, no auth needed) ---
+  // --- Initialize: pull cloud data ONCE (publicly readable, no auth needed) ---
+  // This is the only read from Firebase. No repeated pulls, no real-time listeners.
+  // Yahoo refresh will fill in any missing recent data later.
   async init() {
     if (!FirebaseApp.ready) {
       console.log('[Sync] Firebase not ready — local-only mode');
@@ -85,19 +87,14 @@ const FirebaseSync = {
       }
 
       // Pull all cloud data — this is a PUBLIC read, no auth needed
+      // This is the ONLY Firebase read. No auto-sync pulls, no tab-focus pulls.
       await this._pullAll();
 
-      // Set up real-time listeners (also public reads)
-      this._listenForChanges();
-
-      // Start auto-sync every 5 minutes
-      this._startAutoSync();
-
-      // Pull fresh data when user switches back to this browser tab
-      this._listenForTabFocus();
+      // Start auto-push for authenticated users (push only, no pull)
+      this._startAutoPush();
 
       this.setStatus('synced');
-      console.log('[Sync] Initial pull complete, live sync active');
+      console.log('[Sync] Initial pull complete');
     } catch (e) {
       console.error('[Sync] Init failed:', e.message);
       this.setStatus('error');
@@ -125,9 +122,18 @@ const FirebaseSync = {
     }
 
     // Merge: cloud data wins for each key that exists in cloud
+    const now = Date.now();
     for (const key of this.ALL_KEYS) {
       if (cloudData[key] !== undefined) {
-        localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(cloudData[key])));
+        let val = this._restoreKeys(cloudData[key]);
+        // Refresh timestamps on price caches so stale cloud data is still usable
+        // until Yahoo refresh updates it with fresh prices
+        if ((key === 'priceCache' || key === 'priceStore') && val && typeof val === 'object') {
+          for (const ticker of Object.keys(val)) {
+            if (val[ticker] && val[ticker].ts) val[ticker].ts = now;
+          }
+        }
+        localStorage.setItem(`vip_${key}`, JSON.stringify(val));
       }
     }
 
@@ -188,6 +194,8 @@ const FirebaseSync = {
   },
 
   // Pull per-ticker history from Firebase into localStorage (PUBLIC)
+  // Refreshes the timestamp to Date.now() so cloud data is treated as valid cache.
+  // If the data is stale (missing recent dates), it still displays — Yahoo fills gaps later.
   async _pullHistory() {
     const db = FirebaseApp.db;
     if (!db) return;
@@ -201,7 +209,11 @@ const FirebaseSync = {
       const entry = historyData[safeTicker];
       if (entry && entry.data) {
         try {
-          const json = JSON.stringify(entry);
+          // Refresh timestamp so this data is treated as valid cache
+          // (even if the actual data is days/weeks old). Missing recent dates
+          // will be blank until Yahoo refresh fills them in.
+          const refreshed = { data: entry.data, ts: Date.now() };
+          const json = JSON.stringify(refreshed);
           localStorage.setItem(Storage._hsKey(ticker), json);
           localStorage.setItem(Storage._hcKey(ticker), json);
           console.log(`[Sync] Restored ${entry.data.length} bars for ${ticker} from cloud`);
@@ -209,7 +221,8 @@ const FirebaseSync = {
           console.warn(`[Sync] Quota exceeded restoring ${ticker} history — clearing caches`);
           Storage._clearHistoryCaches();
           try {
-            const json = JSON.stringify(entry);
+            const refreshed = { data: entry.data, ts: Date.now() };
+            const json = JSON.stringify(refreshed);
             localStorage.setItem(Storage._hsKey(ticker), json);
             localStorage.setItem(Storage._hcKey(ticker), json);
           } catch {}
@@ -220,37 +233,6 @@ const FirebaseSync = {
 
   _sanitizeTicker(ticker) {
     return ticker.replace(/\./g, '%2E').replace(/#/g, '%23').replace(/\$/g, '%24').replace(/\//g, '%2F').replace(/\[/g, '%5B').replace(/\]/g, '%5D');
-  },
-
-  // --- Listen for real-time changes from Firebase (PUBLIC reads) ---
-  _listenForChanges() {
-    const db = FirebaseApp.db;
-    if (!db) return;
-
-    for (const key of this.ALL_KEYS) {
-      db.ref(`portfolio/${key}`).on('value', (snapshot) => {
-        if (this._syncing) return;
-        const val = snapshot.val();
-        if (val !== null && val !== undefined) {
-          localStorage.setItem(`vip_${key}`, JSON.stringify(this._restoreKeys(val)));
-        }
-      });
-    }
-
-    for (const ticker of this.HISTORY_TICKERS) {
-      const safeTicker = this._sanitizeTicker(ticker);
-      db.ref(`portfolio/history/${safeTicker}`).on('value', (snapshot) => {
-        if (this._syncing) return;
-        const entry = snapshot.val();
-        if (entry && entry.data) {
-          try {
-            const json = JSON.stringify(entry);
-            localStorage.setItem(Storage._hsKey(ticker), json);
-            localStorage.setItem(Storage._hcKey(ticker), json);
-          } catch {}
-        }
-      });
-    }
   },
 
   // --- Write a single key to Firebase (REQUIRES AUTH) ---
@@ -360,43 +342,25 @@ const FirebaseSync = {
     });
   },
 
-  _listenForTabFocus() {
-    document.addEventListener('visibilitychange', async () => {
-      if (document.visibilityState === 'visible' && FirebaseApp.ready) {
-        console.log('[Sync] Tab became visible — pulling latest from cloud');
-        try {
-          await this._pullAll();
-          this.setStatus('synced');
-        } catch (e) {
-          console.error('[Sync] Tab focus pull failed:', e.message);
-        }
-      }
-    });
-  },
-
-  _startAutoSync() {
-    this._stopAutoSync();
+  // Auto-push local data to cloud every 5 minutes (PUSH ONLY, no pull).
+  // The only Firebase read happens once in init(). All subsequent syncs are writes.
+  _startAutoPush() {
+    this._stopAutoPush();
     this._autoSyncInterval = setInterval(async () => {
       const user = FirebaseApp.auth?.currentUser;
       if (user) {
-        console.log('[Sync] Auto-sync triggered (5min interval)');
+        console.log('[Sync] Auto-push triggered (5min interval)');
         try {
           await this._pushAll();
           this.setStatus('synced');
         } catch (e) {
-          console.error('[Sync] Auto-sync push failed:', e.message);
+          console.error('[Sync] Auto-push failed:', e.message);
         }
-      }
-      // Always pull latest (public read)
-      try {
-        await this._pullAll();
-      } catch (e) {
-        console.error('[Sync] Auto-sync pull failed:', e.message);
       }
     }, this.AUTO_SYNC_MS);
   },
 
-  _stopAutoSync() {
+  _stopAutoPush() {
     if (this._autoSyncInterval) {
       clearInterval(this._autoSyncInterval);
       this._autoSyncInterval = null;
@@ -404,7 +368,7 @@ const FirebaseSync = {
   },
 
   signOut() {
-    this._stopAutoSync();
+    this._stopAutoPush();
     if (FirebaseApp.auth) {
       FirebaseApp.auth.signOut();
     }
