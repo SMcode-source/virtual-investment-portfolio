@@ -1,13 +1,12 @@
 // marketData.js — Yahoo Finance direct integration (browser-side via CORS proxy)
 const MarketData = {
-  // CORS proxies — Cloudflare Worker (primary), allorigins (fallback)
-  // To set up your own worker: deploy cors-worker.js to Cloudflare Workers
-  // and replace the URL below with your worker's URL.
+  // Yahoo Finance proxy — same-origin Cloudflare Pages Function (primary),
+  // public CORS proxy (fallback for local development)
   corsProxies: [
-    'https://yahoo-finance-proxy.smcode-source.workers.dev/?url=',  // Your Cloudflare Worker
-    'https://api.allorigins.win/raw?url='                           // Public fallback
+    '/api/yahoo?url=',                      // Same-origin Pages Function (no CORS needed)
+    'https://api.allorigins.win/raw?url='   // Public fallback (local dev / GitHub Pages)
   ],
-  corsProxy: 'https://yahoo-finance-proxy.smcode-source.workers.dev/?url=', // current active proxy
+  corsProxy: '/api/yahoo?url=',  // current active proxy
   _proxyIndex: 0,
   status: 'disconnected', // disconnected | connecting | connected
   listeners: [],
