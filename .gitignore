@@ -3,3 +3,5 @@ server/node_modules/
 .DS_Store
 Thumbs.db
 *.log
+.claude/
+interactive-brokers-web-api/
