@@ -55,13 +55,9 @@ const YahooRefresh = {
       if (this._aborted) break;
       this._setProgress(done, totalWork, ticker, 'Fetching');
       try {
-        // Clear caches so we get fresh data
-        try { localStorage.removeItem(Storage._hcKey(ticker)); } catch {}
-        const cache = Storage.get('priceCache', {});
-        delete cache[ticker];
-        Storage.set('priceCache', cache);
-
-        await MarketData._fetchFullHistory(ticker);
+        // Fetch fresh data, bypassing cache but NOT deleting existing data.
+        // If Yahoo fails, old cloud data remains available for page renders.
+        await MarketData._fetchFullHistory(ticker, true);
         anySuccess = true;
       } catch (e) {
         console.warn(`[YahooRefresh] Failed for ${ticker}:`, e.message);

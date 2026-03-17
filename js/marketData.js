@@ -214,9 +214,13 @@ const MarketData = {
   // All shorter periods (1M, 3M, 6M, YTD, 1Y, 2Y, 5Y) are sliced from this.
 
   // Fetch all-time history for a ticker (cached for 1hr). Also caches current quote.
-  async _fetchFullHistory(ticker) {
-    const cached = Storage.getCachedHistory(ticker);
-    if (cached) return cached;
+  // Pass skipCache=true to force a fresh fetch WITHOUT deleting existing data first.
+  // If the fresh fetch fails, the old cached data remains available.
+  async _fetchFullHistory(ticker, skipCache = false) {
+    if (!skipCache) {
+      const cached = Storage.getCachedHistory(ticker);
+      if (cached) return cached;
+    }
 
     try {
       // Fetch ALL available history (period1=0 = earliest available date)
