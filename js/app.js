@@ -1,9 +1,9 @@
 // app.js — SPA Router & Main Application Controller
-// New loading strategy:
-//   1. Firebase init + public pull (no auth needed) → fast, gets all data
-//   2. Render the current page immediately with cloud data
+// Loading strategy:
+//   1. Firebase init + public pull (no auth needed) → gets all portfolio data
+//   2. Dismiss overlay, render page with cloud data, show "Cloud data loaded" toast
 //   3. Background Yahoo refresh fetches live quotes & history (non-blocking)
-//   4. Yahoo progress shown in persistent bar, unaffected by navigation
+//   4. When Yahoo finishes, show "Yahoo data updated" toast and re-render
 
 const App = {
   currentPage: 'dashboard',
@@ -33,32 +33,32 @@ const App = {
     // Handle hash routing
     window.addEventListener('hashchange', () => this.route());
 
-    // --- New loading sequence ---
+    // Run the sequential init
     this._initSequence();
   },
 
   async _initSequence() {
-    const overlay = document.getElementById('loading-overlay');
     const stepFirebase = document.getElementById('step-firebase');
     const stepSync = document.getElementById('step-sync');
-    const stepMarket = document.getElementById('step-market');
-
-    // Show loading bar
     const bar = document.getElementById('loading-bar');
-    if (bar) bar.classList.add('active');
     const fill = document.getElementById('loading-bar-fill');
+    const loadMsg = document.getElementById('loading-message');
+
+    if (bar) bar.classList.add('active');
 
     // ---- Step 1: Firebase init ----
     if (stepFirebase) stepFirebase.classList.add('active');
+    if (loadMsg) loadMsg.textContent = 'Connecting to cloud database...';
     let firebaseOk = false;
     if (typeof FirebaseApp !== 'undefined') {
       firebaseOk = FirebaseApp.init();
     }
     this._markStep(stepFirebase, firebaseOk);
-    if (fill) fill.style.width = '33%';
+    if (fill) fill.style.width = '50%';
 
-    // ---- Step 2: Pull data from cloud (PUBLIC read — no auth) ----
+    // ---- Step 2: Pull data from cloud (PUBLIC read, no auth) ----
     if (stepSync) stepSync.classList.add('active');
+    if (loadMsg) loadMsg.textContent = 'Loading portfolio data from cloud...';
     let syncOk = false;
     if (firebaseOk) {
       try {
@@ -69,24 +69,15 @@ const App = {
       }
     }
     this._markStep(stepSync, syncOk);
-    if (fill) fill.style.width = '66%';
-
-    // ---- Step 3: Dismiss overlay and render page with cloud data ----
-    // We now have all portfolio data from Firebase. Render immediately.
     if (fill) fill.style.width = '100%';
 
-    // Update step-market to show Yahoo will refresh in background
-    if (stepMarket) {
-      stepMarket.classList.add('active');
-      stepMarket.querySelector('.loading-step-icon').textContent = '→';
-      stepMarket.classList.add('done');
-    }
+    // ---- Step 3: Dismiss overlay, render page ----
+    if (loadMsg) loadMsg.textContent = syncOk ? 'Portfolio loaded!' : 'Using local data';
 
-    // Dismiss overlay quickly now that we have data
     setTimeout(() => {
       this._dismissOverlay();
       if (bar) bar.classList.remove('active');
-    }, 300);
+    }, 400);
 
     // Set up Firebase auth listener (for push capability)
     if (firebaseOk) {
@@ -94,45 +85,68 @@ const App = {
       FirebaseSync.onAuthReady((user) => this.updateSyncStatus());
     }
 
-    // Initial route — renders the first page
+    // Render the first page with cloud data
     this.route();
-
-    // Update status badges
     this.updateSyncStatus();
     this.updateMarketStatus();
 
-    // ---- Step 4: Background Yahoo Finance refresh ----
-    // Set up the persistent Yahoo refresh indicator
-    this._setupYahooRefreshUI();
+    // Show toast: cloud data loaded
+    if (syncOk) {
+      this._showToast('Cloud data loaded', 'synced');
+    }
 
-    // Listen for market status changes
+    // ---- Step 4: Background Yahoo Finance refresh ----
+    this._setupYahooRefreshUI();
     MarketData.onStatusChange(() => this.updateMarketStatus());
 
-    // Start the background refresh (non-blocking, doesn't affect page rendering)
+    // Start background refresh (does NOT block page rendering)
     YahooRefresh.run();
   },
 
-  // --- Yahoo refresh progress UI (persistent, outside page-content) ---
+  // --- Persistent toast notifications (top-right, outside page content) ---
+  _showToast(message, type = 'info') {
+    let container = document.getElementById('app-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'app-toast-container';
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    // Auto-remove after 4s
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  },
+
+  // --- Yahoo refresh progress UI (persistent banner above page content) ---
   _setupYahooRefreshUI() {
-    // Create the persistent Yahoo refresh banner (sits above page content)
     let banner = document.getElementById('yahoo-refresh-banner');
     if (!banner) {
       banner = document.createElement('div');
       banner.id = 'yahoo-refresh-banner';
       banner.className = 'yahoo-refresh-banner';
-      // Insert before page-content inside main
       const main = document.querySelector('.main-content');
       if (main) main.insertBefore(banner, main.firstChild);
     }
 
-    // Subscribe to progress updates
     YahooRefresh.onProgress((p) => {
       if (!p.running && p.phase === 'Complete') {
-        // Refresh done — hide banner and re-render current page with fresh data
+        // Yahoo refresh done — hide banner, show toast, re-render
         banner.classList.remove('active');
         setTimeout(() => { banner.innerHTML = ''; }, 300);
         this.updateMarketStatus();
-        // Re-render the current page to reflect fresh Yahoo data
+        this._showToast('Yahoo Finance data updated', 'yahoo');
+        // Re-render current page with fresh data
         this.renderPage(this.currentPage);
         return;
       }
@@ -141,7 +155,8 @@ const App = {
         banner.innerHTML = `<span class="yahoo-refresh-icon">⚠</span> Yahoo Finance offline — showing cached data`;
         banner.classList.add('active');
         banner.classList.add('offline');
-        setTimeout(() => { banner.classList.remove('active'); banner.classList.remove('offline'); }, 5000);
+        this._showToast('Yahoo Finance offline — using cached data', 'warning');
+        setTimeout(() => { banner.classList.remove('active', 'offline'); }, 5000);
         this.updateMarketStatus();
         return;
       }
@@ -165,7 +180,6 @@ const App = {
     const hash = window.location.hash.slice(1) || 'dashboard';
     const [page, ...params] = hash.split('/');
 
-    // Auth guard: redirect to login if trying to access protected page
     if (this.PROTECTED.has(page) && !Auth.isAuthenticated()) {
       Auth.setRedirect(page);
       window.location.hash = 'login';
@@ -192,7 +206,6 @@ const App = {
 
   updateAuthUI() {
     const loggedIn = Auth.isAuthenticated();
-
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.style.display = loggedIn ? 'flex' : 'none';
 
@@ -232,7 +245,6 @@ const App = {
     const content = document.getElementById('page-content');
     if (!content) return;
 
-    // Hide sidebar and hamburger on login page
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) sidebar.style.display = page === 'login' ? 'none' : '';
     const hamburger = document.getElementById('hamburger-btn');
@@ -240,7 +252,6 @@ const App = {
     const main = document.querySelector('.main-content');
     if (main) main.style.marginLeft = page === 'login' ? '0' : '';
 
-    // Only show spinner on the very first render
     if (!this._renderedPages.size) {
       content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
     }
