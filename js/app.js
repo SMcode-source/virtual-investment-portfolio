@@ -212,6 +212,53 @@ const App = {
     }
   },
 
+  /** Ensure hidden cache container exists */
+  _getCacheRoot() {
+    let root = document.getElementById('page-cache');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'page-cache';
+      root.style.display = 'none';
+      document.body.appendChild(root);
+    }
+    return root;
+  },
+
+  /** Stash current #page-content children into off-DOM cache */
+  _stashPage(pageName) {
+    if (this.NO_CACHE.has(pageName)) return;
+    const content = document.getElementById('page-content');
+    if (!content || !content.children.length) return;
+
+    const cacheRoot = this._getCacheRoot();
+    // Create a holder div for this page's DOM
+    const holder = document.createElement('div');
+    holder.setAttribute('data-cached-page', pageName);
+    // Move all children from #page-content into the holder
+    while (content.firstChild) {
+      holder.appendChild(content.firstChild);
+    }
+    cacheRoot.appendChild(holder);
+    this._pageCache[pageName] = holder;
+  },
+
+  /** Restore a cached page's DOM back into #page-content */
+  _restorePage(pageName) {
+    const holder = this._pageCache[pageName];
+    if (!holder) return false;
+    const content = document.getElementById('page-content');
+    if (!content) return false;
+
+    // Move all children from the cache holder back into #page-content
+    while (holder.firstChild) {
+      content.appendChild(holder.firstChild);
+    }
+    // Remove the empty holder
+    holder.remove();
+    delete this._pageCache[pageName];
+    return true;
+  },
+
   renderPage(page, params = []) {
     const content = document.getElementById('page-content');
     if (!content) return;
@@ -224,66 +271,51 @@ const App = {
     const main = document.querySelector('.main-content');
     if (main) main.style.marginLeft = page === 'login' ? '0' : '';
 
-    // --- Page caching: hide all cached pages, show the target ---
-    // Hide every cached page container
-    for (const [key, el] of Object.entries(this._pageCache)) {
-      el.style.display = 'none';
+    // If navigating to a different page, stash the current page's DOM
+    if (this._renderedPage && this._renderedPage !== page) {
+      this._stashPage(this._renderedPage);
     }
 
-    // If we already have a cached container for this page (and caching allowed), show it
+    // Try restoring from cache first
     if (!this.NO_CACHE.has(page) && this._pageCache[page]) {
-      this._pageCache[page].style.display = '';
-      // Let the page know it's being shown again (if it has an onShow hook)
+      content.innerHTML = '';
+      this._restorePage(page);
+      this._renderedPage = page;
+      // Optional: let page know it's visible again
       if (this.pages[page] && this.pages[page].onShow) {
-        try { this.pages[page].onShow(this._pageCache[page], params); } catch(e) { console.error(e); }
+        try { this.pages[page].onShow(content, params); } catch(e) { console.error(e); }
       }
       return;
     }
 
-    // No cache — create a new wrapper div for this page
-    const wrapper = document.createElement('div');
-    wrapper.className = 'page-wrapper';
-    wrapper.setAttribute('data-page', page);
-
-    // Clear any leftover non-cached content (like the initial spinner)
-    const orphans = content.querySelectorAll(':scope > :not(.page-wrapper)');
-    orphans.forEach(el => el.remove());
-
-    content.appendChild(wrapper);
-
-    // Render into the wrapper
+    // No cache — render from scratch (original behaviour)
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+    this._renderedPage = page;
     try {
       if (this.pages[page] && this.pages[page].render) {
-        this.pages[page].render(wrapper, params);
+        this.pages[page].render(content, params);
       }
     } catch (e) {
-      wrapper.innerHTML = `<div class="error-state"><h3>Error loading page</h3><p>${e.message}</p></div>`;
+      content.innerHTML = `<div class="error-state"><h3>Error loading page</h3><p>${e.message}</p></div>`;
       console.error(e);
-    }
-
-    // Cache it (unless excluded)
-    if (!this.NO_CACHE.has(page)) {
-      this._pageCache[page] = wrapper;
     }
   },
 
   /** Force a fresh re-render of a page (clears its cache entry) */
   refreshPage(page) {
-    if (this._pageCache[page]) {
-      this._pageCache[page].remove();
-      delete this._pageCache[page];
-    }
+    delete this._pageCache[page];
     if (page === this.currentPage) {
+      this._renderedPage = null;
       this.renderPage(page);
     }
   },
 
   /** Clear all cached pages (useful after data sync) */
   clearPageCache() {
-    for (const [key, el] of Object.entries(this._pageCache)) {
-      el.remove();
-    }
+    const cacheRoot = document.getElementById('page-cache');
+    if (cacheRoot) cacheRoot.innerHTML = '';
     this._pageCache = {};
+    this._renderedPage = null;
   },
 
   logout() {
