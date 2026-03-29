@@ -6,4 +6,6 @@ Thumbs.db
 .claude/
 interactive-brokers-web-api/
 .wrangler/
+worker/.wrangler/
 Password.txt
+*.env
