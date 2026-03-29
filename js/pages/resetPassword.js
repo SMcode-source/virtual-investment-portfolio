@@ -1,4 +1,16 @@
-// resetPassword.js — Complete a password reset using the emailed token
+/**
+ * ============================================================================
+ * RESETPASSWORD.JS — Complete Password Reset (Token Verification)
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Handles the password reset flow after a user clicks the emailed link.
+ *   Verifies the one-time token, then lets the user set a new username
+ *   and password. Credentials are hashed client-side before being sent
+ *   to the server.
+ *
+ * ============================================================================
+ */
 const ResetPassword = {
   _token: null,
   _username: null,

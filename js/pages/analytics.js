@@ -1,4 +1,21 @@
-// analytics.js — Performance KPIs, Sharpe tables, Sharpe calculator
+/**
+ * ============================================================================
+ * ANALYTICS.JS — Portfolio Analytics & Sharpe Ratio Calculator
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Deep-dive analytics page with detailed performance metrics, a sortable
+ *   Sharpe ratio comparison table (your holdings vs benchmarks), and an
+ *   interactive Sharpe calculator where you can pick custom date ranges
+ *   and risk-free rates.
+ *
+ * FEATURES:
+ *   - Performance KPIs: Annualized return, volatility, max drawdown
+ *   - Sharpe Table: Every holding ranked by risk-adjusted return
+ *   - Custom Calculator: Pick start/end dates and risk-free rate
+ *
+ * ============================================================================
+ */
 const Analytics = {
   calcStartDate: '',
   calcEndDate: '',

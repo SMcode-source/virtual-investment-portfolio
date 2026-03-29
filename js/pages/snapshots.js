@@ -1,4 +1,23 @@
-// snapshots.js — Point-in-time portfolio records
+/**
+ * ============================================================================
+ * SNAPSHOTS.JS — Point-in-Time Portfolio Snapshots
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Save and compare portfolio snapshots at specific dates. Each snapshot
+ *   records total value, holdings, and allocation at that moment in time,
+ *   letting you track how your portfolio evolves.
+ *
+ * FEATURES:
+ *   - Take a snapshot of current portfolio state
+ *   - View past snapshots with value and holdings breakdown
+ *   - Compare snapshots side-by-side
+ *   - Delete old snapshots
+ *
+ * REQUIRES LOGIN: Yes
+ *
+ * ============================================================================
+ */
 const Snapshots = {
   render(container) {
     const snapshots = Storage.getSnapshots().sort((a, b) => new Date(b.date) - new Date(a.date));

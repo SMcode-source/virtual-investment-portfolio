@@ -1,4 +1,25 @@
-// settings.js — Portfolio settings and public page toggles
+/**
+ * ============================================================================
+ * SETTINGS.JS — App Settings & Public Page Configuration
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Configure application preferences: currency, risk-free rate, benchmark
+ *   tickers, and which sections are visible on the public portfolio page.
+ *   Also provides data import/export and account management.
+ *
+ * FEATURES:
+ *   - Currency and locale settings
+ *   - Risk-free rate for Sharpe calculations
+ *   - Public page toggles (show/hide holdings, allocations, chart, etc.)
+ *   - Export all data as JSON backup
+ *   - Import data from JSON backup
+ *   - Change password (when logged in)
+ *
+ * REQUIRES LOGIN: Yes
+ *
+ * ============================================================================
+ */
 const Settings = {
   render(container) {
     const s = Storage.getSettings();

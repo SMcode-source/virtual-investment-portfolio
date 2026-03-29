@@ -1,4 +1,14 @@
-// forgotPassword.js — Request a password reset email
+/**
+ * ============================================================================
+ * FORGOTPASSWORD.JS — Password Reset Request Page
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Lets users request a password reset email. Sends a one-time reset link
+ *   via the Resend email API (handled by the /api/reset/request function).
+ *
+ * ============================================================================
+ */
 const ForgotPassword = {
   render(container) {
     container.innerHTML = `

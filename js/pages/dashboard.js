@@ -1,4 +1,25 @@
-// dashboard.js — Dashboard page with time machine, KPIs, charts, holdings, allocations, Sharpe
+/**
+ * ============================================================================
+ * DASHBOARD.JS — Portfolio Dashboard (Main Page)
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   The primary landing page showing your portfolio's performance at a glance.
+ *   Includes a "Time Machine" date picker to view historical snapshots,
+ *   key performance indicators (KPIs), a multi-line performance chart
+ *   comparing your portfolio against benchmarks, holdings breakdown,
+ *   allocation pie charts, and Sharpe ratio analysis.
+ *
+ * FEATURES:
+ *   - Time Machine: Pick any past date to see what your portfolio looked like
+ *   - KPI Cards: Total value, daily change, total return, invested amount
+ *   - Performance Chart: Interactive line chart (1W / 1M / 3M / 6M / 1Y / ALL)
+ *   - Holdings Table: Every stock you own with live prices and gains
+ *   - Allocation Charts: Sector and geographic allocation doughnut charts
+ *   - Sharpe Ratio: Risk-adjusted return vs benchmarks (SPY, QQQ, ISF.L, URTH)
+ *
+ * ============================================================================
+ */
 const Dashboard = {
   timeMachineDate: null,
   performanceChart: null,
