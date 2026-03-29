@@ -1,0 +1,23 @@
+# Yahoo Finance Cron Worker — fetches live data and updates KV
+name = "vip-yahoo-cron"
+main = "src/index.js"
+compatibility_date = "2024-09-25"
+
+# KV Namespace binding — same namespace as the Pages project
+[[kv_namespaces]]
+binding = "PORTFOLIO_DATA"
+id = "263e19c031a74d61b6d4483cba058ca1"
+
+# Cron Triggers
+# - Every 30min during US market hours (Mon-Fri)
+# - Pre-market + London open checks
+# - 3 end-of-day triggers (22:00, 22:05, 22:10 UTC = 5pm, 5:05pm, 5:10pm ET)
+#   spaced apart so batch rotation covers ALL 110+ global ETFs with closing data
+[triggers]
+crons = [
+  "*/30 14-21 * * 1-5",
+  "0 8,12 * * 1-5",
+  "0 22 * * 1-5",
+  "5 22 * * 1-5",
+  "10 22 * * 1-5"
+]

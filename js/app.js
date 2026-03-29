@@ -1,9 +1,29 @@
-// app.js — SPA Router & Main Application Controller
-// Loading strategy:
-//   1. Cloud pull from Cloudflare KV (no auth needed) → gets all portfolio data
-//   2. Dismiss overlay, render page with cloud data, show "Cloud data loaded" toast
-//   3. Background Yahoo refresh fetches live quotes & history (non-blocking)
-//   4. When Yahoo finishes, show "Yahoo data updated" toast and re-render
+/**
+ * ============================================================================
+ * APP.JS — Single-Page Router & Main Application Controller
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   SPA router and app initialization. Orchestrates the startup sequence:
+ *   cloud sync, page routing, status updates, and background data refresh.
+ *
+ * STARTUP SEQUENCE:
+ *   1. Cloud pull (public, no auth) → Load portfolio from Cloudflare KV
+ *   2. Dismiss loading overlay, render initial page
+ *   3. Show "Cloud data loaded" toast
+ *   4. Background Yahoo refresh (non-blocking) → Fetch live data
+ *   5. When Yahoo completes, show "Updated" toast and re-render
+ *
+ * ROUTING:
+ *   Hash-based: #dashboard, #settings, #logTrade?params=value
+ *   Protected pages require authentication (Config.PROTECTED_PAGES)
+ *   Auth pages hide sidebar (login, forgotPassword, resetPassword)
+ *
+ * TIMEOUT:
+ *   Cloud sync waits max Config.SYNC.INIT_TIMEOUT_MS (10 seconds) at startup.
+ *
+ * ============================================================================
+ */
 
 const App = {
   currentPage: 'dashboard',
@@ -11,7 +31,7 @@ const App = {
   _renderedPages: new Set(),
 
   // Pages that require authentication (site login)
-  PROTECTED: new Set(['logTrade', 'journal', 'thinkPieces', 'settings', 'snapshots', 'watchlist']),
+  PROTECTED: new Set(Config.PROTECTED_PAGES),
 
   init() {
     // Register pages
@@ -27,7 +47,9 @@ const App = {
       snapshots: Snapshots,
       publicView: PublicView,
       settings: Settings,
-      login: Login
+      login: Login,
+      forgotPassword: ForgotPassword,
+      resetPassword: ResetPassword
     };
 
     // Handle hash routing
@@ -59,7 +81,7 @@ const App = {
     try {
       const syncPromise = CloudSync.init();
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Cloud sync timed out')), 10000)
+        setTimeout(() => reject(new Error('Cloud sync timed out')), Config.SYNC.INIT_TIMEOUT_MS)
       );
       await Promise.race([syncPromise, timeout]);
       syncOk = true;
@@ -98,7 +120,15 @@ const App = {
     YahooRefresh.run();
   },
 
-  // --- Persistent toast notifications (top-right, outside page content) ---
+  // ── Toast Notifications (persistent, top-right) ───────────────────────────
+
+  /**
+   * Show a toast notification message.
+   * Auto-dismisses after Config.UI.TOAST_DURATION_MS (4 seconds).
+   * @private
+   * @param {string} message - Text to show
+   * @param {string} type - Type for styling: 'info' | 'synced' | 'yahoo' | 'warning'
+   */
   _showToast(message, type = 'info') {
     let container = document.getElementById('app-toast-container');
     if (!container) {
@@ -116,14 +146,21 @@ const App = {
     // Animate in
     requestAnimationFrame(() => toast.classList.add('show'));
 
-    // Auto-remove after 4s
+    // Auto-remove after toast duration
     setTimeout(() => {
       toast.classList.remove('show');
       setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    }, Config.UI.TOAST_DURATION_MS);
   },
 
-  // --- Yahoo refresh progress UI (persistent banner above page content) ---
+  // ── Yahoo Refresh Progress UI (persistent banner above content) ─────────────
+
+  /**
+   * Set up the Yahoo Finance refresh progress banner.
+   * Shows current ticker and % progress during background refresh.
+   * Hides on completion or failure.
+   * @private
+   */
   _setupYahooRefreshUI() {
     const banner = document.getElementById('yahoo-refresh-banner');
     if (!banner) return;
@@ -163,9 +200,18 @@ const App = {
     });
   },
 
+  // ── Routing & Navigation ─────────────────────────────────────────────────
+
+  /**
+   * Route to a page based on the current hash.
+   * Protects pages in Config.PROTECTED_PAGES (require login).
+   * Handles hash params like #resetPassword?token=abc.
+   */
   route() {
-    const hash = window.location.hash.slice(1) || 'dashboard';
-    const [page, ...params] = hash.split('/');
+    const rawHash = window.location.hash.slice(1) || 'dashboard';
+    // Handle hash params like #resetPassword?token=abc
+    const [hashBase] = rawHash.split('?');
+    const [page, ...params] = hashBase.split('/');
 
     if (this.PROTECTED.has(page) && !Auth.isAuthenticated()) {
       Auth.setRedirect(page);
@@ -181,16 +227,28 @@ const App = {
     }
   },
 
+  /**
+   * Navigate to a page by updating the hash.
+   * @param {string} page - The page name (e.g., 'dashboard', 'settings')
+   */
   navigate(page) {
     window.location.hash = page;
   },
 
+  /**
+   * Update the sidebar nav to highlight the active page.
+   * @private
+   */
   updateNav() {
     document.querySelectorAll('.nav-item').forEach(el => {
       el.classList.toggle('active', el.dataset.page === this.currentPage);
     });
   },
 
+  /**
+   * Update auth UI: show logout button if logged in, lock icons for protected pages.
+   * @private
+   */
   updateAuthUI() {
     const loggedIn = Auth.isAuthenticated();
     const logoutBtn = document.getElementById('logout-btn');
@@ -204,16 +262,30 @@ const App = {
     });
   },
 
+  /**
+   * Update the market status badge (Yahoo Finance connection state).
+   * @private
+   */
   updateMarketStatus() {
     const el = document.getElementById('market-status');
     if (el) el.innerHTML = MarketData.getStatusBadge();
   },
 
+  /**
+   * Update the sync status badge (cloud sync state).
+   * @private
+   */
   updateSyncStatus() {
     const el = document.getElementById('sync-status');
     if (el) el.innerHTML = CloudSync.getStatusBadge();
   },
 
+  /**
+   * Mark a loading step as done (show checkmark).
+   * @private
+   * @param {Element} el - The loading step element
+   * @param {boolean} success - True for checkmark, false for dash
+   */
   _markStep(el, success) {
     if (!el) return;
     el.classList.remove('active');
@@ -221,23 +293,38 @@ const App = {
     el.querySelector('.loading-step-icon').textContent = success ? '✓' : '–';
   },
 
+  /**
+   * Dismiss the loading overlay after startup.
+   * @private
+   */
   _dismissOverlay() {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.classList.add('hidden');
   },
 
+  // ── Page Rendering ───────────────────────────────────────────────────────
+
+  /**
+   * Render a page to the content container.
+   * Hides sidebar for auth pages (login, forgotPassword, resetPassword).
+   * Shows loading spinner if first page render.
+   * @private
+   * @param {string} page - The page name
+   * @param {Array} params - URL params from hash (e.g., ['abc'] from #page/abc)
+   */
   renderPage(page, params = []) {
     const content = document.getElementById('page-content');
     if (!content) return;
 
     const sidebar = document.querySelector('.sidebar');
-    if (sidebar) sidebar.style.display = page === 'login' ? 'none' : '';
+    const isAuthPage = Config.AUTH_PAGES.includes(page);
+    if (sidebar) sidebar.style.display = isAuthPage ? 'none' : '';
     const hamburger = document.getElementById('hamburger-btn');
-    if (hamburger) hamburger.style.display = page === 'login' ? 'none' : '';
+    if (hamburger) hamburger.style.display = isAuthPage ? 'none' : '';
     const main = document.querySelector('.main-content');
-    if (main) main.style.marginLeft = page === 'login' ? '0' : '';
+    if (main) main.style.marginLeft = isAuthPage ? '0' : '';
     const banner = document.getElementById('yahoo-refresh-banner');
-    if (banner) banner.style.display = page === 'login' ? 'none' : '';
+    if (banner) banner.style.display = isAuthPage ? 'none' : '';
 
     if (!this._renderedPages.size) {
       content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
@@ -254,6 +341,9 @@ const App = {
     }
   },
 
+  /**
+   * Log out the user and redirect to login page.
+   */
   logout() {
     Auth.logout();
     this._renderedPages.clear();

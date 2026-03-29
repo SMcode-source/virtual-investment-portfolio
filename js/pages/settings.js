@@ -173,6 +173,35 @@ const Settings = {
         <div id="diag-log" style="background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;font-family:var(--font-mono);font-size:0.78rem;min-height:120px;max-height:400px;overflow-y:auto;line-height:1.8;white-space:pre-wrap;color:var(--text-muted)">Click "Run Full Diagnostics" to test Yahoo Finance connectivity...</div>
       </div>
 
+      <!-- Change Credentials -->
+      <div class="card" style="margin-top:24px">
+        <div class="card-title" style="margin-bottom:12px">Change Login Credentials</div>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:16px">
+          Update your username and/or password. You must be logged in. After changing your password, you'll also need to update the <code>SYNC_SECRET</code> environment variable in Cloudflare to match the new password hash for cloud sync to work.
+        </p>
+
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">New Username</label>
+          <input type="text" class="form-control" id="cred-new-user" placeholder="Enter new username">
+        </div>
+
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">New Password</label>
+          <div style="position:relative">
+            <input type="password" class="form-control" id="cred-new-pass" placeholder="Enter new password">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:16px">
+          <label class="form-label">Confirm Password</label>
+          <input type="password" class="form-control" id="cred-confirm-pass" placeholder="Confirm new password">
+        </div>
+
+        <div id="cred-result" style="display:none;padding:10px;border-radius:var(--radius-sm);font-size:0.82rem;margin-bottom:12px"></div>
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="Settings.changeCredentials()">Update Credentials</button>
+      </div>
+
       <!-- Data Export/Import -->
       <div class="card" style="margin-top:24px">
         <div class="card-title" style="margin-bottom:16px">Data Management</div>
@@ -515,6 +544,52 @@ const Settings = {
     this._log('═══════════════════════════════════════════');
     this._log('  Diagnostics complete');
     this._log('═══════════════════════════════════════════');
+  },
+
+  async changeCredentials() {
+    const newUser = document.getElementById('cred-new-user')?.value?.trim();
+    const newPass = document.getElementById('cred-new-pass')?.value;
+    const confirmPass = document.getElementById('cred-confirm-pass')?.value;
+    const resultEl = document.getElementById('cred-result');
+
+    const showResult = (msg, isError) => {
+      if (!resultEl) return;
+      resultEl.textContent = msg;
+      resultEl.style.display = 'block';
+      resultEl.style.background = isError ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)';
+      resultEl.style.color = isError ? 'var(--red)' : 'var(--green)';
+    };
+
+    if (!newUser || !newPass) {
+      showResult('Please enter both a new username and password.', true);
+      return;
+    }
+    if (newPass !== confirmPass) {
+      showResult('Passwords do not match.', true);
+      return;
+    }
+    if (newPass.length < 4) {
+      showResult('Password must be at least 4 characters.', true);
+      return;
+    }
+    if (!Auth.isAuthenticated() || !CloudSync.isAuthenticated()) {
+      showResult('You must be logged in to change credentials.', true);
+      return;
+    }
+
+    try {
+      const result = await Auth.changeCredentials(newUser, newPass);
+      showResult(
+        `Credentials updated successfully! New password hash: ${result.newPassHash.slice(0, 12)}... — Update SYNC_SECRET in Cloudflare to this value for cloud sync.`,
+        false
+      );
+      // Clear the form
+      document.getElementById('cred-new-user').value = '';
+      document.getElementById('cred-new-pass').value = '';
+      document.getElementById('cred-confirm-pass').value = '';
+    } catch (e) {
+      showResult(`Failed to update credentials: ${e.message}`, true);
+    }
   },
 
   importData(event) {

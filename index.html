@@ -120,7 +120,8 @@
     </div>
   </div>
 
-  <!-- Scripts (order matters) -->
+  <!-- Scripts (order matters: config first, then core modules, then pages, then app last) -->
+  <script src="js/config.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/cloudSync.js"></script>
   <script src="js/marketData.js"></script>
@@ -139,6 +140,8 @@
   <script src="js/pages/publicView.js"></script>
   <script src="js/pages/settings.js"></script>
   <script src="js/pages/login.js"></script>
+  <script src="js/pages/forgotPassword.js"></script>
+  <script src="js/pages/resetPassword.js"></script>
   <script src="js/app.js"></script>
   <script>
     // Mobile sidebar toggle

@@ -34,9 +34,9 @@ const Login = {
             Sign In
           </button>
 
-          <p style="text-align:center;margin-top:16px;font-size:0.75rem;color:var(--text-dim)">
-            Forgot credentials? <a href="mailto:${Auth.RESET_EMAIL}?subject=VIP%20Password%20Reset%20Request&body=Please%20reset%20my%20Virtual%20Investment%20Portfolio%20credentials." style="color:var(--primary-light)">Request a reset via email</a>
-          </p>
+          <div style="text-align:center;margin-top:16px">
+            <a href="#forgotPassword" style="font-size:0.82rem;color:var(--primary-light)">Forgot your password?</a>
+          </div>
 
           <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
             <p style="font-size:0.78rem;color:var(--text-dim)">

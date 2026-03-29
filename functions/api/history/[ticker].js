@@ -1,55 +1,63 @@
-// Cloudflare Pages Function — /api/history/:ticker
-// GET: Public read — returns cached price history for a ticker
-// POST: Authenticated write — saves price history for a ticker
-// Uses Cloudflare KV namespace bound as PORTFOLIO_DATA
-// Keys stored as "history_SPY", "history_QQQ", etc.
+/**
+ * Cloudflare Pages Function — /api/history/:ticker
+ *
+ * GET: Public read — returns cached price history for a stock ticker
+ * POST: Authenticated write — saves price history for a stock ticker
+ *
+ * Environment variables:
+ *   - PORTFOLIO_DATA: KV namespace binding for persistent storage
+ *   - SYNC_SECRET: Bearer token required for POST requests
+ *
+ * Authentication: POST requires "Authorization: Bearer {SYNC_SECRET}" header
+ *
+ * URL parameters:
+ *   - ticker: Stock ticker symbol (e.g., SPY, QQQ, AAPL)
+ *
+ * Implementation details:
+ *   Data is stored in KV with keys prefixed "history_" (e.g., "history_SPY")
+ *
+ * Usage:
+ *   GET /api/history/SPY
+ *   POST /api/history/SPY with JSON body containing price data
+ */
+
+import { isAuthorized, jsonResponse, errorResponse, handleOptions } from '../_helpers.js';
 
 export async function onRequestGet(context) {
   const ticker = context.params.ticker;
-  if (!ticker) return jsonResp({ error: 'Missing ticker' }, 400);
+  if (!ticker) return errorResponse('Missing ticker', 400);
 
   const kv = context.env.PORTFOLIO_DATA;
-  if (!kv) return jsonResp({ error: 'KV not configured' }, 500);
+  if (!kv) return errorResponse('KV not configured', 500);
 
   try {
     const val = await kv.get(`history_${ticker}`, 'json');
-    return jsonResp(val !== null ? val : null);
+    return jsonResponse(val !== null ? val : null);
   } catch (e) {
-    return jsonResp({ error: e.message }, 500);
+    return errorResponse(e.message, 500);
   }
 }
 
 export async function onRequestPost(context) {
   const ticker = context.params.ticker;
-  if (!ticker) return jsonResp({ error: 'Missing ticker' }, 400);
+  if (!ticker) return errorResponse('Missing ticker', 400);
 
   const kv = context.env.PORTFOLIO_DATA;
-  if (!kv) return jsonResp({ error: 'KV not configured' }, 500);
+  if (!kv) return errorResponse('KV not configured', 500);
 
-  if (!isAuthorized(context)) {
-    return jsonResp({ error: 'Unauthorized' }, 401);
+  if (!isAuthorized(context.request, context.env)) {
+    return errorResponse('Unauthorized', 401);
   }
 
   try {
     const body = await context.request.json();
     await kv.put(`history_${ticker}`, JSON.stringify(body));
-    return jsonResp({ ok: true });
+    return jsonResponse({ ok: true });
   } catch (e) {
-    return jsonResp({ error: e.message }, 500);
+    return errorResponse(e.message, 500);
   }
 }
 
-function isAuthorized(context) {
-  const secret = context.env.SYNC_SECRET;
-  if (!secret) return false;
-  const auth = context.request.headers.get('Authorization') || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  return token === secret;
-}
-
-function jsonResp(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
+export async function onRequestOptions(context) {
+  return handleOptions();
 }

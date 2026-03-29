@@ -1,8 +1,24 @@
-// Cloudflare Pages Function — /api/yahoo
-// Proxies requests to Yahoo Finance, runs on the same domain as the site.
-// No CORS issues since it's same-origin.
-//
-// Usage: /api/yahoo?url=https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=1d&interval=1d
+/**
+ * Cloudflare Pages Function — /api/yahoo
+ *
+ * GET: Proxy to Yahoo Finance API with domain allowlist and caching
+ *
+ * Environment variables: None required
+ * Authentication: None required (public endpoint)
+ *
+ * Query parameters:
+ *   - url: Full URL to Yahoo Finance API endpoint (must be on allowlisted domains)
+ *
+ * Security:
+ *   - Only query1.finance.yahoo.com and query2.finance.yahoo.com are allowed
+ *   - Invalid URLs are rejected
+ *   - Responses are cached for 60 seconds
+ *
+ * Usage:
+ *   GET /api/yahoo?url=https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=1d&interval=1d
+ */
+
+import { corsHeaders, jsonResponse, errorResponse, handleOptions } from './_helpers.js';
 
 const ALLOWED_HOSTS = [
   'query1.finance.yahoo.com',
@@ -12,16 +28,16 @@ const ALLOWED_HOSTS = [
 export async function onRequest(context) {
   const { request } = context;
 
-  // Handle preflight (shouldn't be needed since same-origin, but just in case)
+  // Handle preflight requests
   if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders(request) });
+    return handleOptions();
   }
 
   const { searchParams } = new URL(request.url);
   const targetUrl = searchParams.get('url');
 
   if (!targetUrl) {
-    return jsonResponse({ error: 'Missing ?url= parameter' }, 400, request);
+    return errorResponse('Missing ?url= parameter', 400);
   }
 
   // Security: only allow Yahoo Finance domains
@@ -29,11 +45,11 @@ export async function onRequest(context) {
   try {
     parsed = new URL(targetUrl);
   } catch {
-    return jsonResponse({ error: 'Invalid URL' }, 400, request);
+    return errorResponse('Invalid URL', 400);
   }
 
   if (!ALLOWED_HOSTS.includes(parsed.hostname)) {
-    return jsonResponse({ error: `Domain not allowed: ${parsed.hostname}` }, 403, request);
+    return errorResponse(`Domain not allowed: ${parsed.hostname}`, 403);
   }
 
   try {
@@ -48,28 +64,12 @@ export async function onRequest(context) {
     return new Response(body, {
       status: resp.status,
       headers: {
-        ...corsHeaders(request),
+        ...corsHeaders,
         'Content-Type': resp.headers.get('Content-Type') || 'application/json',
         'Cache-Control': 'public, max-age=60'
       }
     });
   } catch (e) {
-    return jsonResponse({ error: `Fetch failed: ${e.message}` }, 502, request);
+    return errorResponse(`Fetch failed: ${e.message}`, 502);
   }
-}
-
-function corsHeaders(request) {
-  return {
-    'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400'
-  };
-}
-
-function jsonResponse(data, status, request) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders(request), 'Content-Type': 'application/json' }
-  });
 }

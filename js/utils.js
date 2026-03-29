@@ -1,4 +1,22 @@
-// utils.js — Formatting helpers, computation utilities
+/**
+ * ============================================================================
+ * UTILS.JS — Formatting, Date, and Financial Calculation Utilities
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Provides formatting functions for currency/dates/numbers, financial
+ *   calculations (Sharpe ratio, max drawdown), and chart/UI helpers.
+ *   Most functions are pure (no side effects) and can be used anywhere.
+ *
+ * KEY FUNCTIONS:
+ *   Formatting: formatCurrency, formatPercent, formatDate, formatDateTime
+ *   Finance: calcSharpeRatio, maxDrawdown, dailyReturns, cumulativeReturns
+ *   Date: periodToStartDate, dateOffset, startOfYear
+ *   UI: statusBadge, sentimentBadge, sharpeRating, sharpePill, escHtml
+ *
+ * ============================================================================
+ */
+
 const Utils = {
   // --- Formatting ---
   formatCurrency(val, currency = 'USD', compact = false) {
@@ -53,17 +71,26 @@ const Utils = {
   },
   getFlag(country) { return this.countryFlags[country] || '🌐'; },
 
-  // --- Sharpe Ratio Calculation ---
-  calcSharpeRatio(returns, riskFreeRate = 0.04) {
+  // ── Sharpe Ratio Calculation ──────────────────────────────────────────────
+
+  /**
+   * Calculate the Sharpe ratio from daily returns and a risk-free rate.
+   * Annualizes daily returns and volatility using Config.UI.TRADING_DAYS_PER_YEAR (252).
+   * Uses Config.UI.DEFAULT_RISK_FREE_RATE as default (4% annual).
+   * @param {Array<number>} returns - Daily returns (decimals, e.g., 0.01 for 1%)
+   * @param {number} riskFreeRate - Annual risk-free rate (default from Config)
+   * @returns {Object} {sharpe, annReturn%, annVol%, riskFreeRate, dataPoints}
+   */
+  calcSharpeRatio(returns, riskFreeRate = Config.UI.DEFAULT_RISK_FREE_RATE) {
     if (!returns || returns.length < 2) return { sharpe: 0, annReturn: 0, annVol: 0, riskFreeRate, dataPoints: 0 };
     const n = returns.length;
-    const dailyRf = riskFreeRate / 252;
+    const dailyRf = riskFreeRate / Config.UI.TRADING_DAYS_PER_YEAR;
     const excessReturns = returns.map(r => r - dailyRf);
     const mean = excessReturns.reduce((a, b) => a + b, 0) / n;
     const variance = excessReturns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / (n - 1);
     const stdDev = Math.sqrt(variance);
-    const annReturn = mean * 252;
-    const annVol = stdDev * Math.sqrt(252);
+    const annReturn = mean * Config.UI.TRADING_DAYS_PER_YEAR;
+    const annVol = stdDev * Math.sqrt(Config.UI.TRADING_DAYS_PER_YEAR);
     const sharpe = annVol > 0 ? annReturn / annVol : 0;
     return { sharpe: Math.round(sharpe * 100) / 100, annReturn: annReturn * 100, annVol: annVol * 100, riskFreeRate, dataPoints: n };
   },
