@@ -1,4 +1,24 @@
-// logTrade.js — Trade logging form with Yahoo Finance integration
+/**
+ * ============================================================================
+ * LOGTRADE.JS — Log a New Trade (Buy / Sell / Dividend)
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Form page for recording new trades. Search for any stock ticker via
+ *   Yahoo Finance autocomplete, see a live quote, then log a BUY, SELL,
+ *   or DIVIDEND with quantity, price, fees, and notes.
+ *
+ * FEATURES:
+ *   - Ticker search with live Yahoo Finance autocomplete
+ *   - Real-time quote display (price, change, volume)
+ *   - Trade type toggle: BUY / SELL / DIVIDEND
+ *   - Auto-fills current price, calculates total cost
+ *   - Saves to local storage and syncs to cloud
+ *
+ * REQUIRES LOGIN: Yes (writing trades requires authentication)
+ *
+ * ============================================================================
+ */
 const LogTrade = {
   tradeType: 'BUY',
   selectedTicker: null,

@@ -1,4 +1,23 @@
-// journal.js — Investment journal with timeline, filters, CRUD
+/**
+ * ============================================================================
+ * JOURNAL.JS — Investment Journal (Notes & Research Log)
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   A personal journal for recording investment thoughts, research notes,
+ *   and trade rationales. Entries have sentiment (bullish/bearish/neutral)
+ *   and conviction level. Displayed as a filterable timeline.
+ *
+ * FEATURES:
+ *   - Create, edit, and delete journal entries
+ *   - Tag with sentiment (bullish / bearish / neutral) and conviction (1-5)
+ *   - Filter by sentiment and minimum conviction
+ *   - Chronological timeline view
+ *
+ * REQUIRES LOGIN: Yes
+ *
+ * ============================================================================
+ */
 const Journal = {
   filterSentiment: '',
   filterConviction: 0,

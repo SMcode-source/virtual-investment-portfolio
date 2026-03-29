@@ -1,4 +1,21 @@
-// thinkPieces.js — Long-form investment articles
+/**
+ * ============================================================================
+ * THINKPIECES.JS — Long-Form Investment Articles & Research
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Write and store long-form investment research articles. Supports
+ *   categorized tabs, rich text editing, and a reading-friendly layout.
+ *
+ * FEATURES:
+ *   - Create, edit, and delete long-form articles
+ *   - Categorize by tab (e.g., Macro, Sector, Stock-specific)
+ *   - Full-text search across all articles
+ *
+ * REQUIRES LOGIN: Yes
+ *
+ * ============================================================================
+ */
 const ThinkPieces = {
   activeTab: 'all',
 

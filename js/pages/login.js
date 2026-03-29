@@ -1,4 +1,16 @@
-// login.js — Login page with username + password
+/**
+ * ============================================================================
+ * LOGIN.JS — User Login Page
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Simple login form with username and password. Credentials are verified
+ *   against SHA-256 hashes stored in Cloudflare KV (never stored in
+ *   plaintext). Successful login enables cloud sync and access to
+ *   protected pages (Log Trade, Journal, Settings, etc.).
+ *
+ * ============================================================================
+ */
 const Login = {
   render(container) {
     container.innerHTML = `

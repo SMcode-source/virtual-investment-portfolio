@@ -1,4 +1,23 @@
-// watchlist.js — Stock watchlist with alerts
+/**
+ * ============================================================================
+ * WATCHLIST.JS — Stock Watchlist with Price Alerts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Track stocks you're interested in but don't own yet. Add any ticker
+ *   to your watchlist with optional price alerts (notify when price drops
+ *   below or rises above a target).
+ *
+ * FEATURES:
+ *   - Add/remove tickers with Yahoo Finance search
+ *   - Live price updates for all watched stocks
+ *   - Set upper and lower price alert thresholds
+ *   - Visual indicators when alerts are triggered
+ *
+ * REQUIRES LOGIN: Yes
+ *
+ * ============================================================================
+ */
 const Watchlist = {
   render(container) {
     const items = Storage.getWatchlist();

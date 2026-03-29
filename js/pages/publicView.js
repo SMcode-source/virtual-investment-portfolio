@@ -1,4 +1,25 @@
-// publicView.js — Public portfolio view preview (read-only)
+/**
+ * ============================================================================
+ * PUBLICVIEW.JS — Public Portfolio Page (Read-Only, No Login Required)
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   A shareable, read-only view of your portfolio that anyone can see
+ *   without logging in. Shows performance chart, holdings, and metrics
+ *   based on what you've enabled in Settings. This is what visitors see
+ *   when you share your portfolio link.
+ *
+ * FEATURES:
+ *   - Performance chart with benchmark comparisons
+ *   - Holdings table (if enabled in settings)
+ *   - Allocation charts (if enabled in settings)
+ *   - Sharpe ratio display (if enabled in settings)
+ *   - Respects all privacy toggles from Settings page
+ *
+ * REQUIRES LOGIN: No (this is the public-facing page)
+ *
+ * ============================================================================
+ */
 const PublicView = {
   selectedPeriod: '1Y',
   sharpeWindow: 365,

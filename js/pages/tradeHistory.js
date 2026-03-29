@@ -1,4 +1,20 @@
-// tradeHistory.js — Sortable trade history table with filters and CSV export
+/**
+ * ============================================================================
+ * TRADEHISTORY.JS — Trade History Table
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Displays all logged trades in a sortable, filterable table. Each row
+ *   shows date, ticker, type (BUY/SELL/DIVIDEND), quantity, price, fees,
+ *   and total. Supports CSV export for spreadsheet analysis.
+ *
+ * FEATURES:
+ *   - Sortable columns (click any header to sort)
+ *   - Filter by trade type (BUY / SELL / DIVIDEND)
+ *   - CSV export of visible trades
+ *
+ * ============================================================================
+ */
 const TradeHistory = {
   sortCol: 'date',
   sortDir: 'desc',
