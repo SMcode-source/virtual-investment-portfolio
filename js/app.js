@@ -116,8 +116,16 @@ const App = {
     this._setupYahooRefreshUI();
     MarketData.onStatusChange(() => this.updateMarketStatus());
 
-    // Start background refresh (does NOT block page rendering)
-    YahooRefresh.run();
+    // Start background refresh only if live Yahoo updates are enabled
+    const appSettings = Storage.getSettings();
+    if (appSettings.liveYahooRefresh !== false) {
+      // Default is ON — only skip if explicitly disabled
+      YahooRefresh.run();
+    } else {
+      console.log('[App] Live Yahoo refresh disabled in settings — using cached/cloud data only');
+      MarketData.setStatus('disconnected');
+      this.updateMarketStatus();
+    }
   },
 
   // ── Toast Notifications (persistent, top-right) ───────────────────────────

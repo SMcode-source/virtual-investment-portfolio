@@ -63,7 +63,21 @@ const Settings = {
             <p style="font-size:0.72rem;color:var(--text-dim);margin-top:4px">Used for Sharpe ratio calculations across all pages. Default: 4%</p>
           </div>
 
-          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="Settings.savePortfolio()">Save Portfolio Settings</button>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+            <div style="font-weight:600;margin-bottom:12px">Data Refresh</div>
+            <div class="toggle-row">
+              <div>
+                <div style="font-weight:500">Live Yahoo Finance Refresh</div>
+                <div style="font-size:0.78rem;color:var(--text-dim)">Fetch live prices from Yahoo on page load. When off, only cached/cloud data is used.</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="s-live-yahoo" ${s.liveYahooRefresh !== false ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px" onclick="Settings.savePortfolio()">Save Portfolio Settings</button>
 
           <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
             <div class="card-title" style="margin-bottom:12px;color:var(--red)">Danger Zone</div>
@@ -296,8 +310,9 @@ const Settings = {
     s.startingCash = parseFloat(document.getElementById('s-cash')?.value) || 100000;
     s.baseCurrency = document.getElementById('s-currency')?.value || 'USD';
     s.riskFreeRate = parseFloat(document.getElementById('s-risk-free')?.value) ?? 4.0;
+    s.liveYahooRefresh = document.getElementById('s-live-yahoo')?.checked ?? true;
     Storage.saveSettings(s);
-    alert('Portfolio settings saved!');
+    alert('Portfolio settings saved! Live Yahoo refresh change takes effect on next page load.');
   },
 
   savePublic() {
