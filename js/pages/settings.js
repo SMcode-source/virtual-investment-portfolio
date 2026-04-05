@@ -708,16 +708,7 @@ const Settings = {
     const minBarThreshold = Math.max(0.1, Math.min(1.0, thresholdPct / 100));
 
     try {
-      const token = CloudSync.getSyncToken();
-      const resp = await fetch('/api/history-protection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ enabled, keepBackup, minBarThreshold })
-      });
-      const result = await resp.json();
+      const result = await CloudSync._post('/api/history-protection', { enabled, keepBackup, minBarThreshold });
       if (result.ok) {
         showStatus('History protection settings saved.', false);
       } else {
@@ -740,16 +731,7 @@ const Settings = {
     }
 
     try {
-      const token = CloudSync.getSyncToken();
-      const resp = await fetch('/api/history-protection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ action: 'list-backups' })
-      });
-      const result = await resp.json();
+      const result = await CloudSync._post('/api/history-protection', { action: 'list-backups' });
 
       if (!result.ok || !result.backups || result.backups.length === 0) {
         container.innerHTML = '<span style="color:var(--text-dim)">No backups available yet. Backups are created automatically when history data is updated.</span>';
@@ -780,16 +762,7 @@ const Settings = {
     const container = document.getElementById('hp-backups');
 
     try {
-      const token = CloudSync.getSyncToken();
-      const resp = await fetch('/api/history-protection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ action: 'restore', ticker })
-      });
-      const result = await resp.json();
+      const result = await CloudSync._post('/api/history-protection', { action: 'restore', ticker });
 
       if (result.ok) {
         alert(`${ticker} restored successfully! ${result.bars} bars from backup dated ${new Date(result.backupTs).toLocaleString()}.`);
