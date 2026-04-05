@@ -173,6 +173,58 @@ const Settings = {
         <p style="font-size:0.78rem;color:var(--text-dim)">Push uploads your local data to the cloud. Pull downloads the latest cloud data to this device. You must be logged in for push to work.</p>
       </div>
 
+      <!-- History Data Protection -->
+      <div class="card" style="margin-top:24px">
+        <div class="card-header">
+          <div>
+            <div class="card-title">History Data Protection</div>
+            <div class="card-subtitle">Prevent accidental overwrites from Yahoo Finance glitches</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;font-size:0.82rem;color:var(--text-muted)">
+          When enabled, the system validates new history data before overwriting existing data.
+          If a Yahoo Finance glitch returns significantly fewer bars than expected, the update is
+          rejected and your existing data is preserved. Backups of previous data are kept automatically.
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:500">Enable History Protection</div>
+            <div style="font-size:0.78rem;color:var(--text-dim)">Reject updates where new data is suspiciously smaller than existing</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="hp-enabled" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div style="font-weight:500">Keep Automatic Backups</div>
+            <div style="font-size:0.78rem;color:var(--text-dim)">Save last-known-good data before each overwrite for rollback</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="hp-backup" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="form-group" style="margin-top:12px">
+          <label class="form-label">Minimum Bar Threshold (%)</label>
+          <input type="number" class="form-control" id="hp-threshold" value="80" min="10" max="100" step="5">
+          <p style="font-size:0.72rem;color:var(--text-dim);margin-top:4px">Reject updates if new data has fewer bars than this % of existing. Default: 80%</p>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn btn-primary" onclick="Settings.saveHistoryProtection()">Save Protection Settings</button>
+          <button class="btn" onclick="Settings.listBackups()">View Backups</button>
+        </div>
+
+        <div id="hp-backups" style="display:none;margin-top:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;font-size:0.82rem"></div>
+        <div id="hp-status" style="display:none;margin-top:12px;padding:10px;border-radius:var(--radius-sm);font-size:0.82rem"></div>
+      </div>
+
       <!-- Market Data Diagnostics -->
       <div class="card" style="margin-top:24px">
         <div class="card-header">
@@ -233,6 +285,9 @@ const Settings = {
         </div>
       </div>
     `;
+
+    // Load history protection settings from cloud (async, non-blocking)
+    this._loadHistoryProtection();
   },
 
   savePortfolio() {
@@ -610,6 +665,140 @@ const Settings = {
       document.getElementById('cred-confirm-pass').value = '';
     } catch (e) {
       showResult(`Failed to update credentials: ${e.message}`, true);
+    }
+  },
+
+  // --- History Protection ---
+
+  async _loadHistoryProtection() {
+    try {
+      const resp = await fetch('/api/history-protection');
+      if (resp.ok) {
+        const settings = await resp.json();
+        const enabledEl = document.getElementById('hp-enabled');
+        const backupEl = document.getElementById('hp-backup');
+        const thresholdEl = document.getElementById('hp-threshold');
+        if (enabledEl) enabledEl.checked = settings.enabled !== false;
+        if (backupEl) backupEl.checked = settings.keepBackup !== false;
+        if (thresholdEl) thresholdEl.value = Math.round((settings.minBarThreshold || 0.8) * 100);
+      }
+    } catch (e) {
+      console.warn('[Settings] Failed to load history protection settings:', e.message);
+    }
+  },
+
+  async saveHistoryProtection() {
+    const statusEl = document.getElementById('hp-status');
+    const showStatus = (msg, isError) => {
+      if (!statusEl) return;
+      statusEl.textContent = msg;
+      statusEl.style.display = 'block';
+      statusEl.style.background = isError ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)';
+      statusEl.style.color = isError ? 'var(--red)' : 'var(--green)';
+    };
+
+    if (!CloudSync.isAuthenticated()) {
+      showStatus('You must be logged in to change protection settings.', true);
+      return;
+    }
+
+    const enabled = document.getElementById('hp-enabled')?.checked ?? true;
+    const keepBackup = document.getElementById('hp-backup')?.checked ?? true;
+    const thresholdPct = parseInt(document.getElementById('hp-threshold')?.value) || 80;
+    const minBarThreshold = Math.max(0.1, Math.min(1.0, thresholdPct / 100));
+
+    try {
+      const token = CloudSync.getSyncToken();
+      const resp = await fetch('/api/history-protection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ enabled, keepBackup, minBarThreshold })
+      });
+      const result = await resp.json();
+      if (result.ok) {
+        showStatus('History protection settings saved.', false);
+      } else {
+        showStatus('Failed to save: ' + (result.error || 'Unknown error'), true);
+      }
+    } catch (e) {
+      showStatus('Failed to save: ' + e.message, true);
+    }
+  },
+
+  async listBackups() {
+    const container = document.getElementById('hp-backups');
+    if (!container) return;
+    container.style.display = 'block';
+    container.innerHTML = '<span style="color:var(--text-dim)">Loading backups...</span>';
+
+    if (!CloudSync.isAuthenticated()) {
+      container.innerHTML = '<span style="color:var(--red)">You must be logged in to view backups.</span>';
+      return;
+    }
+
+    try {
+      const token = CloudSync.getSyncToken();
+      const resp = await fetch('/api/history-protection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action: 'list-backups' })
+      });
+      const result = await resp.json();
+
+      if (!result.ok || !result.backups || result.backups.length === 0) {
+        container.innerHTML = '<span style="color:var(--text-dim)">No backups available yet. Backups are created automatically when history data is updated.</span>';
+        return;
+      }
+
+      let html = '<div style="font-weight:500;margin-bottom:10px">Available Backups</div>';
+      for (const b of result.backups) {
+        const date = b.date ? new Date(b.date).toLocaleString() : 'Unknown';
+        html += `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div>
+              <strong>${Utils.escHtml(b.ticker)}</strong> — ${b.bars.toLocaleString()} bars
+              <div style="font-size:0.75rem;color:var(--text-dim)">Backed up: ${date}</div>
+            </div>
+            <button class="btn" style="font-size:0.78rem;padding:4px 12px" onclick="Settings.restoreBackup('${Utils.escHtml(b.ticker)}')">Restore</button>
+          </div>`;
+      }
+      container.innerHTML = html;
+    } catch (e) {
+      container.innerHTML = `<span style="color:var(--red)">Failed to load backups: ${Utils.escHtml(e.message)}</span>`;
+    }
+  },
+
+  async restoreBackup(ticker) {
+    if (!confirm(`Restore ${ticker} history from backup? This will overwrite the current data with the backup copy.`)) return;
+
+    const container = document.getElementById('hp-backups');
+
+    try {
+      const token = CloudSync.getSyncToken();
+      const resp = await fetch('/api/history-protection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action: 'restore', ticker })
+      });
+      const result = await resp.json();
+
+      if (result.ok) {
+        alert(`${ticker} restored successfully! ${result.bars} bars from backup dated ${new Date(result.backupTs).toLocaleString()}.`);
+        this.listBackups(); // Refresh the list
+      } else {
+        alert('Restore failed: ' + (result.reason || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Restore failed: ' + e.message);
     }
   },
 

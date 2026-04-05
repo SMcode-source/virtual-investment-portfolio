@@ -51,6 +51,35 @@ export async function onRequestPost(context) {
 
   try {
     const body = await context.request.json();
+    const newLen = body?.data?.length || 0;
+
+    // ── History Protection: validate before overwriting ──
+    const protection = await kv.get('_historyProtection', 'json') || {
+      enabled: true, minBarThreshold: 0.8, keepBackup: true
+    };
+
+    if (protection.enabled && newLen > 0) {
+      const existing = await kv.get(`history_${ticker}`, 'json');
+      const existingLen = existing?.data?.length || 0;
+
+      if (existingLen > 0) {
+        const ratio = newLen / existingLen;
+
+        if (ratio < protection.minBarThreshold) {
+          return jsonResponse({
+            ok: false,
+            protected: true,
+            reason: `New data (${newLen} bars) is significantly smaller than existing (${existingLen} bars). Ratio ${ratio.toFixed(2)} < threshold ${protection.minBarThreshold}. Update rejected to protect data integrity.`
+          });
+        }
+
+        // Keep backup before overwriting
+        if (protection.keepBackup) {
+          await kv.put(`_backup_history_${ticker}`, JSON.stringify(existing));
+        }
+      }
+    }
+
     await kv.put(`history_${ticker}`, JSON.stringify(body));
     return jsonResponse({ ok: true });
   } catch (e) {

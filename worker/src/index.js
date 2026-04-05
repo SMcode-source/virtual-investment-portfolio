@@ -285,15 +285,48 @@ async function runRefresh(env, options = {}) {
 
     // 8. Fetch and store full history for benchmark tickers
     //    Only on batch 0 to conserve subrequests. These run every 3 hours with rotation.
+    //    Includes validation: rejects updates where new data is significantly smaller
+    //    than existing data (protects against Yahoo glitches/outages).
     let historyUpdated = 0;
     let historyFailed = 0;
+    let historySkipped = 0;
     const failedHistoryTickers = [];
+
+    // Read history protection settings from KV (user configurable via app settings)
+    const historyProtection = await kv.get('_historyProtection', 'json') || {
+      enabled: true,
+      minBarThreshold: 0.8,  // Reject if new data has < 80% of existing bars
+      keepBackup: true        // Keep last-known-good copy as backup
+    };
 
     if (batchIndex === 0) {
       for (const ticker of historyTickers) {
         try {
           const history = await fetchFullHistory(ticker);
           if (history && history.length > 0) {
+
+            // ── History Protection: validate before overwriting ──
+            if (historyProtection.enabled) {
+              const existingRaw = await kv.get(`history_${ticker}`, 'json');
+              const existingLen = existingRaw?.data?.length || 0;
+
+              if (existingLen > 0) {
+                const ratio = history.length / existingLen;
+
+                // Reject if new dataset is significantly smaller (likely a Yahoo glitch)
+                if (ratio < historyProtection.minBarThreshold) {
+                  historySkipped++;
+                  log.push(`History PROTECTED: ${ticker} — new ${history.length} bars vs existing ${existingLen} bars (ratio ${ratio.toFixed(2)} < ${historyProtection.minBarThreshold}). Skipped.`);
+                  continue;
+                }
+
+                // Keep backup of existing data before overwriting
+                if (historyProtection.keepBackup) {
+                  await kv.put(`_backup_history_${ticker}`, JSON.stringify(existingRaw));
+                }
+              }
+            }
+
             await kv.put(`history_${ticker}`, JSON.stringify({
               data: history,
               ts: Date.now()
@@ -309,7 +342,7 @@ async function runRefresh(env, options = {}) {
         // Rate limit
         await sleep(MIN_DELAY_MS);
       }
-      log.push(`History updated: ${historyUpdated}, failed: ${historyFailed}`);
+      log.push(`History updated: ${historyUpdated}, failed: ${historyFailed}, protected: ${historySkipped}`);
     } else {
       log.push(`History: skipped (only runs on batch 0)`);
     }
@@ -326,6 +359,7 @@ async function runRefresh(env, options = {}) {
       failedTickers: failedTickers.length > 0 ? failedTickers : undefined,
       historyRefreshed: historyUpdated,
       historyFailed: historyFailed,
+      historyProtected: historySkipped,
       failedHistoryTickers: failedHistoryTickers.length > 0 ? failedHistoryTickers : undefined,
       totalErrors: quotesFailed + historyFailed,
       totalGlobalETFs: ALL_GLOBAL_TICKERS.length
