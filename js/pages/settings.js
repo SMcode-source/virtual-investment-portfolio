@@ -21,6 +21,14 @@
  * ============================================================================
  */
 const Settings = {
+  _showFieldStatus(el, msg, isError) {
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.background = isError ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)';
+    el.style.color = isError ? 'var(--red)' : 'var(--green)';
+  },
+
   render(container) {
     const s = Storage.getSettings();
     const pub = s.public || {};
@@ -642,14 +650,7 @@ const Settings = {
     const newPass = document.getElementById('cred-new-pass')?.value;
     const confirmPass = document.getElementById('cred-confirm-pass')?.value;
     const resultEl = document.getElementById('cred-result');
-
-    const showResult = (msg, isError) => {
-      if (!resultEl) return;
-      resultEl.textContent = msg;
-      resultEl.style.display = 'block';
-      resultEl.style.background = isError ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)';
-      resultEl.style.color = isError ? 'var(--red)' : 'var(--green)';
-    };
+    const showResult = (msg, isError) => this._showFieldStatus(resultEl, msg, isError);
 
     if (!newUser || !newPass) {
       showResult('Please enter both a new username and password.', true);
@@ -687,16 +688,13 @@ const Settings = {
 
   async _loadHistoryProtection() {
     try {
-      const resp = await fetch('/api/history-protection');
-      if (resp.ok) {
-        const settings = await resp.json();
-        const enabledEl = document.getElementById('hp-enabled');
-        const backupEl = document.getElementById('hp-backup');
-        const thresholdEl = document.getElementById('hp-threshold');
-        if (enabledEl) enabledEl.checked = settings.enabled !== false;
-        if (backupEl) backupEl.checked = settings.keepBackup !== false;
-        if (thresholdEl) thresholdEl.value = Math.round((settings.minBarThreshold || 0.8) * 100);
-      }
+      const settings = await CloudSync._get('/api/history-protection');
+      const enabledEl = document.getElementById('hp-enabled');
+      const backupEl = document.getElementById('hp-backup');
+      const thresholdEl = document.getElementById('hp-threshold');
+      if (enabledEl) enabledEl.checked = settings.enabled !== false;
+      if (backupEl) backupEl.checked = settings.keepBackup !== false;
+      if (thresholdEl) thresholdEl.value = Math.round((settings.minBarThreshold || 0.8) * 100);
     } catch (e) {
       console.warn('[Settings] Failed to load history protection settings:', e.message);
     }
@@ -704,13 +702,7 @@ const Settings = {
 
   async saveHistoryProtection() {
     const statusEl = document.getElementById('hp-status');
-    const showStatus = (msg, isError) => {
-      if (!statusEl) return;
-      statusEl.textContent = msg;
-      statusEl.style.display = 'block';
-      statusEl.style.background = isError ? 'rgba(220,38,38,0.1)' : 'rgba(22,163,74,0.1)';
-      statusEl.style.color = isError ? 'var(--red)' : 'var(--green)';
-    };
+    const showStatus = (msg, isError) => this._showFieldStatus(statusEl, msg, isError);
 
     if (!CloudSync.isAuthenticated()) {
       showStatus('You must be logged in to change protection settings.', true);

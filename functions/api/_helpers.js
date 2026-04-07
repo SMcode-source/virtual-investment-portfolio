@@ -85,3 +85,13 @@ export function errorResponse(message, status = 400) {
 export function handleOptions() {
   return new Response(null, { status: 204, headers: corsHeaders });
 }
+
+/**
+ * Default history protection settings.
+ * Used as fallback when KV has no stored settings yet.
+ */
+export const HISTORY_PROTECTION_DEFAULTS = {
+  enabled: true,
+  minBarThreshold: 0.8,
+  keepBackup: true
+};

@@ -21,7 +21,7 @@
  *   POST /api/history/SPY with JSON body containing price data
  */
 
-import { isAuthorized, jsonResponse, errorResponse, handleOptions } from '../_helpers.js';
+import { isAuthorized, jsonResponse, errorResponse, handleOptions, HISTORY_PROTECTION_DEFAULTS } from '../_helpers.js';
 
 export async function onRequestGet(context) {
   const ticker = context.params.ticker;
@@ -54,9 +54,7 @@ export async function onRequestPost(context) {
     const newLen = body?.data?.length || 0;
 
     // ── History Protection: validate before overwriting ──
-    const protection = await kv.get('_historyProtection', 'json') || {
-      enabled: true, minBarThreshold: 0.8, keepBackup: true
-    };
+    const protection = await kv.get('_historyProtection', 'json') || HISTORY_PROTECTION_DEFAULTS;
 
     if (protection.enabled && newLen > 0) {
       const existing = await kv.get(`history_${ticker}`, 'json');
