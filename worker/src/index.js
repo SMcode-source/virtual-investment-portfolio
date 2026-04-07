@@ -293,11 +293,8 @@ async function runRefresh(env, options = {}) {
     const failedHistoryTickers = [];
 
     // Read history protection settings from KV (user configurable via app settings)
-    const historyProtection = await kv.get('_historyProtection', 'json') || {
-      enabled: true,
-      minBarThreshold: 0.8,  // Reject if new data has < 80% of existing bars
-      keepBackup: true        // Keep last-known-good copy as backup
-    };
+    const HISTORY_PROTECTION_DEFAULTS = { enabled: true, minBarThreshold: 0.8, keepBackup: true };
+    const historyProtection = await kv.get('_historyProtection', 'json') || HISTORY_PROTECTION_DEFAULTS;
 
     if (batchIndex === 0) {
       for (const ticker of historyTickers) {
